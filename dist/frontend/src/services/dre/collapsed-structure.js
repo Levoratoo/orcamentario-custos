@@ -1,0 +1,78 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DRE_COLLAPSED_ROOT_LABELS = void 0;
+exports.normalizeDreLabel = normalizeDreLabel;
+exports.getCollapsedRootRows = getCollapsedRootRows;
+exports.DRE_COLLAPSED_ROOT_LABELS = [
+    '(+) RECEITA BRUTA',
+    '(-) DEDUCOES',
+    '(=) RECEITA LIQUIDA',
+    '(-) CUSTOS E DESPESAS VARIAVEIS',
+    '(-) CUSTOS VARIAVEIS',
+    '(-) INSUMOS E SERVICOS DE TERCEIROS',
+    '(-) DESPESAS VARIAVEIS',
+    '(-) FRETES',
+    '(-) COMISSOES E ROYALTIES',
+    '(-) OUTRAS DESPESAS DIRETAS',
+    '(=) MARGEM DE CONTRIBUICAO',
+    '(-) CUSTOS E DESPESAS FIXAS DESEMBOLSAVEIS',
+    '(-) CUSTOS FIXOS',
+    '(-) CUSTOS COM PESSOAL',
+    '(-) MANUTENCAO DE MAQUINAS',
+    '(-) ENERGIA ELETRICA',
+    '(-) CONVENIO - SEJC - DEAP',
+    '(-) PRESTACAO DE SERVICOS',
+    '(-) OUTROS CUSTOS',
+    '(-) DESPESAS FIXAS',
+    '(-) DESPESAS COM PESSOAL',
+    '(-) DESPESAS COMERCIAIS',
+    '(-) DESPESAS COM VIAGENS',
+    '(-) SOFTWARES',
+    '(-) PRESTACAO DE SERVICOS',
+    '(-) LOGISTICA',
+    '(-) OUTRAS DESPESAS',
+    '(=) EBITDA',
+    '(-) DEPRECIACAO',
+    '(=) EBIT',
+    '(=) RESULTADO FINANCEIRO',
+    '(-) DESPESAS FINANCEIRAS',
+    '(+) RECEITAS FINANCEIRAS',
+    '(=) RESULTADO NAO OPERACIONAL',
+    '(+/-) GANHOS E PERDAS DE CAPITAL',
+    '(+) OUTRAS RECEITAS',
+    'CRITERIO DE RATEIO',
+    '(=) LUCRO ANTES DO IRPJ E CSLL',
+    '(-) IRPJ E CSLL',
+    '(=) LUCRO LIQUIDO',
+];
+function normalizeDreLabel(value) {
+    return String(value ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+function getCollapsedRootRows(rootRows) {
+    const targetOrder = exports.DRE_COLLAPSED_ROOT_LABELS.map((label) => normalizeDreLabel(label));
+    const byLabel = new Map();
+    rootRows.forEach((row) => {
+        const key = normalizeDreLabel(String(row.descricao ?? ''));
+        const list = byLabel.get(key) ?? [];
+        list.push(row);
+        byLabel.set(key, list);
+    });
+    const ordered = [];
+    const cursorByLabel = new Map();
+    targetOrder.forEach((labelKey) => {
+        const rows = byLabel.get(labelKey) ?? [];
+        const cursor = cursorByLabel.get(labelKey) ?? 0;
+        const row = rows[cursor];
+        if (!row)
+            return;
+        ordered.push(row);
+        cursorByLabel.set(labelKey, cursor + 1);
+    });
+    return ordered;
+}
+//# sourceMappingURL=collapsed-structure.js.map

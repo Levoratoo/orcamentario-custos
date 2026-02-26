@@ -1,0 +1,1 @@
+{"version":3,"file":"use-api-client.js","sourceRoot":"","sources":["../../../../frontend/src/hooks/use-api-client.ts"],"names":[],"mappings":"AAAA,YAAY,CAAC;;;AAKb,oCAGC;AAND,wEAA+D;AAC/D,6CAAmD;AAEnD,SAAgB,YAAY;IAC1B,MAAM,EAAE,WAAW,EAAE,OAAO,EAAE,GAAG,IAAA,uBAAO,GAAE,CAAC;IAC3C,OAAO,IAAA,wBAAe,EAAC,EAAE,WAAW,EAAE,OAAO,EAAE,CAAC,CAAC;AACnD,CAAC"}

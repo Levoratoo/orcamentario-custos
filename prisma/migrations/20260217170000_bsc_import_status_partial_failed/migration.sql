@@ -1,0 +1,13 @@
+DO $$
+BEGIN
+  ALTER TYPE "BscImportStatus" ADD VALUE IF NOT EXISTS 'PARTIAL';
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TYPE "BscImportStatus" ADD VALUE IF NOT EXISTS 'FAILED';
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;

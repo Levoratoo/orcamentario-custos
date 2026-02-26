@@ -1,0 +1,746 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CONTROLLER
+  COORDINATOR
+}
+
+enum ScenarioStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  LOCKED
+}
+
+enum DriverType {
+  FIXED
+  HEADCOUNT
+  PERCENT_PAYROLL
+  CONTRACT
+  CONSUMPTION
+  OTHER
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  IMPORT
+}
+
+enum AccountPlanType {
+  T
+  A
+}
+
+enum BudgetKind {
+  BUDGET
+  ACTUAL
+}
+
+enum BudgetStatus {
+  DRAFT
+  READY
+  PROCESSING
+  ERROR
+  ARCHIVED
+}
+
+enum DreMode {
+  PREVISTO
+  REALIZADO
+}
+
+enum BscPerspectiveName {
+  FINANCEIRO
+  CLIENTE
+  PROCESSOS
+  APRENDIZADO_CRESCIMENTO
+}
+
+enum BscIndicatorDirection {
+  HIGHER_IS_BETTER
+  LOWER_IS_BETTER
+}
+
+enum BscImportStatus {
+  PROCESSING
+  SUCCESS
+  PARTIAL
+  FAILED
+  ERROR
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  name               String
+  username           String   @unique
+  email              String?  @unique
+  passwordHash       String
+  role               Role
+  mustChangePassword Boolean  @default(false)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  coordinatorProfile        CoordinatorProfile?
+  costCentersOwned          CostCenter[]              @relation("CostCenterOwner")
+  scenariosCreated          Scenario[]                @relation("ScenarioCreator")
+  budgetLinesCreated        BudgetLine[]              @relation("BudgetLineCreator")
+  budgetLinesUpdated        BudgetLine[]              @relation("BudgetLineUpdater")
+  budgetScenarioSnapshots   BudgetScenarioSnapshot[]
+  sponsoredAccounts         AccountSponsor[]          @relation("AccountSponsorUser")
+  budgetItemsCreated        BudgetItem[]              @relation("BudgetItemCreator")
+  planningAccounts          PlanningAccount[]         @relation("PlanningAccountOwner")
+  planningValuesUpdated     PlanningValue[]           @relation("PlanningValueUpdater")
+  accountAssignments        UserAccountAssignment[]   @relation("UserAccountAssignments")
+  accountAssignmentsCreated UserAccountAssignment[]   @relation("UserAccountAssignmentsCreatedBy")
+  budgetLimits              BudgetLimit[]
+  importedBudgetEntries     ImportedBudget2026Entry[]
+  bscImports                BscImport[]
+  refreshTokens             RefreshToken[]
+  auditLogs                 AuditLog[]                @relation("AuditActor")
+}
+
+model CoordinatorProfile {
+  userId      String  @id
+  displayName String
+  phone       String?
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model CostCenter {
+  id                 String   @id @default(uuid())
+  code               String   @unique
+  name               String
+  active             Boolean  @default(true)
+  ownerCoordinatorId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  ownerCoordinator User?            @relation("CostCenterOwner", fields: [ownerCoordinatorId], references: [id])
+  budgetLines      BudgetLine[]
+  accountSponsors  AccountSponsor[] @relation("AccountSponsorCostCenter")
+  budgetItems      BudgetItem[]     @relation("BudgetItemCostCenter")
+
+  @@index([ownerCoordinatorId])
+}
+
+model Account {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  category  String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budgetLines BudgetLine[]
+}
+
+model Scenario {
+  id          String         @id @default(uuid())
+  name        String
+  year        Int
+  status      ScenarioStatus @default(DRAFT)
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  lockedAt    DateTime?
+
+  createdBy   User         @relation("ScenarioCreator", fields: [createdById], references: [id])
+  budgetLines BudgetLine[]
+
+  @@index([status])
+}
+
+model BudgetLine {
+  id            String     @id @default(uuid())
+  scenarioId    String
+  costCenterId  String
+  accountId     String
+  description   String
+  driverType    DriverType
+  driverValue   Json?
+  monthlyValues Json
+  currency      String     @default("BRL")
+  assumptions   String?
+  createdById   String
+  updatedById   String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  scenario   Scenario   @relation(fields: [scenarioId], references: [id])
+  costCenter CostCenter @relation(fields: [costCenterId], references: [id])
+  account    Account    @relation(fields: [accountId], references: [id])
+  createdBy  User       @relation("BudgetLineCreator", fields: [createdById], references: [id])
+  updatedBy  User       @relation("BudgetLineUpdater", fields: [updatedById], references: [id])
+
+  @@unique([scenarioId, costCenterId, accountId, description])
+  @@index([scenarioId])
+  @@index([costCenterId])
+  @@index([accountId])
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  entityType  String
+  entityId    String
+  action      AuditAction
+  before      Json?
+  after       Json?
+  actorUserId String
+  requestId   String?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  actor User @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([entityType, entityId])
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  replacedBy String?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  filename  String
+  mimeType  String
+  size      Int
+  url       String
+  createdAt DateTime @default(now())
+}
+
+model AccountPlan {
+  id             String          @id @default(uuid())
+  code           String          @unique
+  type           AccountPlanType
+  classification String          @unique
+  description    String
+  level          Int
+  parentId       String?
+  isAtiva        Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  parent   AccountPlan?  @relation("AccountPlanHierarchy", fields: [parentId], references: [id])
+  children AccountPlan[] @relation("AccountPlanHierarchy")
+
+  @@index([parentId])
+  @@index([level])
+}
+
+model ImportJob {
+  id        String   @id @default(uuid())
+  fileName  String
+  totalRows Int
+  inserted  Int
+  updated   Int
+  errors    Json?
+  createdAt DateTime @default(now())
+}
+
+model BudgetScenarioSnapshot {
+  id          String   @id @default(uuid())
+  scenarioId  String
+  payload     Json
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  createdBy User? @relation(fields: [createdById], references: [id])
+
+  @@index([scenarioId, createdAt])
+}
+
+model Budget {
+  id           String       @id @default(uuid())
+  name         String
+  year         Int
+  kind         BudgetKind   @default(BUDGET)
+  status       BudgetStatus @default(DRAFT)
+  isActive     Boolean      @default(false)
+  fileName     String?
+  notes        String?
+  version      Int          @default(1)
+  errorMessage String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  imports     BudgetImport[]
+  lines       DreLine[]
+  budgetItems BudgetItem[]
+
+  @@index([year])
+  @@index([kind, isActive])
+}
+
+model BudgetImport {
+  id           String       @id @default(uuid())
+  budgetId     String
+  version      Int
+  fileName     String
+  status       BudgetStatus
+  errorMessage String?
+  uploadedAt   DateTime     @default(now())
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId, uploadedAt])
+}
+
+model DreLine {
+  id          String   @id @default(uuid())
+  budgetId    String
+  nodeKey     String
+  parentKey   String?
+  level       Int
+  sortOrder   Int
+  accountCode String?
+  accountName String
+  groupPath   String
+  month       Int?
+  mode        DreMode
+  value       Decimal  @default(0)
+  createdAt   DateTime @default(now())
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId])
+  @@index([budgetId, mode])
+  @@index([budgetId, mode, month])
+  @@index([nodeKey])
+  @@index([parentKey])
+  @@index([month])
+}
+
+model AccountSponsor {
+  id             String    @id @default(uuid())
+  accountCode    String
+  costCenterId   String?
+  sponsorUserId  String?
+  sponsorDisplay String
+  activeFrom     DateTime?
+  activeTo       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  sponsorUser User?       @relation("AccountSponsorUser", fields: [sponsorUserId], references: [id])
+  costCenter  CostCenter? @relation("AccountSponsorCostCenter", fields: [costCenterId], references: [id])
+
+  @@index([accountCode, costCenterId])
+  @@index([sponsorUserId])
+}
+
+model BudgetItem {
+  id              String   @id @default(uuid())
+  budgetId        String
+  accountCode     String
+  costCenterId    String?
+  itemName        String
+  isActive        Boolean  @default(true)
+  isReimbursement Boolean  @default(false)
+  comment         String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  budget     Budget            @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  createdBy  User              @relation("BudgetItemCreator", fields: [createdByUserId], references: [id])
+  costCenter CostCenter?       @relation("BudgetItemCostCenter", fields: [costCenterId], references: [id])
+  values     BudgetItemValue[]
+
+  @@index([budgetId, accountCode, costCenterId])
+  @@index([budgetId])
+}
+
+model BudgetItemValue {
+  id           String   @id @default(uuid())
+  budgetItemId String
+  month        Int
+  value        Decimal  @default(0)
+  updatedAt    DateTime @updatedAt
+
+  budgetItem BudgetItem @relation(fields: [budgetItemId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetItemId, month])
+  @@index([budgetItemId])
+}
+
+model ClosingMonth {
+  id           String     @id @default(uuid())
+  year         Int
+  kind         BudgetKind
+  closingMonth Int        @default(0)
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([year, kind])
+}
+
+model Proacao {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts     PlanningAccount[]
+  budgetLimits BudgetLimit[]
+}
+
+model PlanningAccount {
+  id          String   @id @default(uuid())
+  proacaoId   String
+  code        String
+  name        String
+  label       String
+  ownerUserId String
+  orderIndex  Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  proacao     Proacao                 @relation(fields: [proacaoId], references: [id], onDelete: Cascade)
+  owner       User                    @relation("PlanningAccountOwner", fields: [ownerUserId], references: [id])
+  values      PlanningValue[]
+  assignments UserAccountAssignment[]
+
+  @@unique([proacaoId, code, ownerUserId])
+  @@index([proacaoId])
+  @@index([ownerUserId])
+}
+
+model UserAccountAssignment {
+  id          String   @id @default(uuid())
+  userId      String
+  accountId   String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  user      User            @relation("UserAccountAssignments", fields: [userId], references: [id])
+  account   PlanningAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdBy User            @relation("UserAccountAssignmentsCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([userId, accountId])
+  @@index([userId])
+  @@index([accountId])
+  @@index([createdById])
+}
+
+model PlanningValue {
+  id          String   @id @default(uuid())
+  accountId   String
+  year        Int
+  month       Int
+  value       Decimal  @default(0)
+  source      String   @default("MANUAL")
+  sourceFile  String?
+  locked      Boolean  @default(false)
+  updatedById String
+  updatedAt   DateTime @updatedAt
+
+  account   PlanningAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  updatedBy User            @relation("PlanningValueUpdater", fields: [updatedById], references: [id])
+
+  @@unique([accountId, year, month])
+  @@index([accountId, year])
+}
+
+model BudgetLimit {
+  id        String   @id @default(uuid())
+  year      Int
+  proacaoId String
+  userId    String?
+  maxValue  Decimal  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proacao Proacao @relation(fields: [proacaoId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@unique([year, proacaoId, userId])
+  @@index([proacaoId])
+  @@index([userId])
+}
+
+model RevenueProjection {
+  id        String   @id @default(uuid())
+  year      Int
+  month     Int
+  value     Decimal  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, month])
+  @@index([year])
+}
+
+model RealizedValue {
+  id          String   @id @default(uuid())
+  year        Int
+  month       Int
+  accountCode String
+  value       Decimal  @default(0)
+  sourceFile  String?
+  importedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([year, month, accountCode])
+  @@index([year])
+  @@index([year, accountCode])
+  @@index([accountCode])
+}
+
+model DreBudgetBaseline {
+  id           String   @id @default(uuid())
+  year         Int
+  accountCode  String
+  accountLabel String
+  month        Int
+  value        Decimal  @default(0)
+  sourceFile   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([year, accountCode, month])
+  @@index([year])
+  @@index([accountCode])
+}
+
+model ImportedBudget2026Entry {
+  id              String   @id @default(uuid())
+  year            Int
+  month           Int
+  scenario        String
+  coordinatorId   String
+  coordinatorName String
+  accountPathId   String
+  accountLabel    String
+  detailLabel     String?
+  value           Decimal  @default(0)
+  source          String   @default("IMPORT_XLSX_PRO_ACAO_2026")
+  meta            Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  coordinator User @relation(fields: [coordinatorId], references: [id], onDelete: Cascade)
+
+  @@unique([year, month, scenario, coordinatorId, accountPathId])
+  @@index([year, accountPathId])
+  @@index([coordinatorId])
+}
+
+model BscImport {
+  id           String          @id @default(uuid())
+  fileName     String
+  fileHash     String
+  status       BscImportStatus @default(PROCESSING)
+  startedAt    DateTime        @default(now())
+  finishedAt   DateTime?
+  warnings     Json?
+  counters     Json?
+  errorMessage String?
+  importedById String?
+
+  importedBy User? @relation(fields: [importedById], references: [id])
+
+  @@index([fileHash])
+  @@index([startedAt])
+}
+
+model BscPerspective {
+  id         String             @id @default(uuid())
+  name       BscPerspectiveName @unique
+  orderIndex Int
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  objectives BscObjective[]
+}
+
+model BscObjective {
+  id            String   @id @default(uuid())
+  perspectiveId String
+  name          String
+  slug          String   @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  perspective BscPerspective @relation(fields: [perspectiveId], references: [id], onDelete: Cascade)
+  indicators  BscIndicator[]
+
+  @@index([perspectiveId])
+}
+
+model BscIndicator {
+  id          String                @id @default(uuid())
+  objectiveId String
+  code        String                @unique
+  name        String
+  responsible String?
+  dataOwner   String?
+  level       Int?
+  process     String?
+  keywords    String?
+  direction   BscIndicatorDirection @default(HIGHER_IS_BETTER)
+  needsReview Boolean               @default(false)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  objective    BscObjective              @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  yearTargets  BscIndicatorYearTarget[]
+  monthTargets BscIndicatorMonthTarget[]
+  monthActuals BscIndicatorMonthActual[]
+  actionPlans  BscIndicatorActionPlan[]
+
+  @@index([objectiveId])
+}
+
+model BscIndicatorYearTarget {
+  id          String   @id @default(uuid())
+  indicatorId String
+  year        Int
+  targetValue Decimal?
+  rawValue    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  indicator BscIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@unique([indicatorId, year])
+  @@index([year])
+}
+
+model BscIndicatorMonthTarget {
+  id          String   @id @default(uuid())
+  indicatorId String
+  year        Int
+  month       Int
+  targetValue Decimal?
+  rawValue    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  indicator BscIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@unique([indicatorId, year, month])
+  @@index([year, month])
+}
+
+model BscIndicatorMonthActual {
+  id          String   @id @default(uuid())
+  indicatorId String
+  year        Int
+  month       Int
+  actualValue Decimal?
+  rawValue    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  indicator BscIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@unique([indicatorId, year, month])
+  @@index([year, month])
+}
+
+model BscIndicatorActionPlan {
+  id                String    @id @default(uuid())
+  indicatorId       String
+  period            String?
+  fact              String?
+  priority          String?
+  cause             String?
+  action            String?
+  owner             String?
+  dueDate           DateTime?
+  effectiveness     String?
+  relatedIndicators String?
+  sourceSheet       String
+  rowIndex          Int
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  indicator BscIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@index([indicatorId])
+  @@index([sourceSheet, rowIndex])
+}
+
+model BscProject {
+  id              String    @id @default(uuid())
+  name            String
+  snapshotDate    DateTime
+  owner           String?
+  startDate       DateTime?
+  endDate         DateTime?
+  duration        String?
+  percentComplete Decimal?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tasks BscProjectTask[]
+
+  @@unique([name, snapshotDate])
+  @@index([snapshotDate])
+}
+
+model BscProjectTask {
+  id              String    @id @default(uuid())
+  projectId       String
+  wbs             String?
+  name            String
+  assignee        String?
+  startDate       DateTime?
+  endDate         DateTime?
+  duration        String?
+  bucket          String?
+  percentComplete Decimal?
+  parentWbs       String?
+  level           Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project   BscProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshots BscTaskSnapshot[]
+
+  @@unique([projectId, wbs, name])
+  @@index([projectId])
+  @@index([wbs])
+}
+
+model BscTaskSnapshot {
+  id              String   @id @default(uuid())
+  taskId          String
+  snapshotDate    DateTime
+  percentComplete Decimal?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  task BscProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, snapshotDate])
+  @@index([snapshotDate])
+}

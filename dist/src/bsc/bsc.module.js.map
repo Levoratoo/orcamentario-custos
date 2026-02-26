@@ -1,0 +1,1 @@
+{"version":3,"file":"bsc.module.js","sourceRoot":"","sources":["../../../src/bsc/bsc.module.ts"],"names":[],"mappings":";;;;;;;;;AAAA,2CAAwC;AACxC,qDAAiD;AACjD,6DAAwD;AACxD,+CAA2C;AAMpC,IAAM,SAAS,GAAf,MAAM,SAAS;CAAG,CAAA;AAAZ,8BAAS;oBAAT,SAAS;IAJrB,IAAA,eAAM,EAAC;QACN,WAAW,EAAE,CAAC,8BAAa,CAAC;QAC5B,SAAS,EAAE,CAAC,qCAAgB,EAAE,wBAAU,CAAC;KAC1C,CAAC;GACW,SAAS,CAAG"}

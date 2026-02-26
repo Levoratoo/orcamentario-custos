@@ -1,0 +1,62 @@
+
+> frontend@0.1.0 dev
+> next dev --webpack
+
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\pedro.levorato\Documents\Plano orçamentário custos\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\Users\pedro.levorato\Documents\Plano orçamentário custos\frontend\package-lock.json
+
+▲ Next.js 16.1.3 (webpack)
+- Local:         http://localhost:3004
+- Network:       http://192.168.1.104:3004
+- Environments: .env.local
+
+✓ Starting...
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+✓ Ready in 5s
+⚠ Cross origin request detected from 192.168.1.104 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+○ Compiling /dashboard ...
+ GET /login 200 in 18.9s (compile: 17.7s, proxy.ts: 195ms, render: 1023ms)
+ GET /login 200 in 18.9s (compile: 17.7s, proxy.ts: 195ms, render: 1026ms)
+ GET /dashboard 200 in 18.9s (compile: 17.7s, proxy.ts: 195ms, render: 1028ms)
+ GET /login 200 in 250ms (compile: 46ms, proxy.ts: 54ms, render: 150ms)
+ GET /login 200 in 209ms (compile: 40ms, proxy.ts: 43ms, render: 125ms)
+ POST /api/auth/refresh 401 in 3.4s (compile: 2.2s, proxy.ts: 89ms, render: 1093ms)
+ POST /api/auth/refresh 401 in 3.9s (compile: 2.7s, proxy.ts: 90ms, render: 1099ms)
+ POST /api/auth/refresh 401 in 4.3s (compile: 3.1s, proxy.ts: 38ms, render: 1111ms)
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ POST /api/auth/refresh 200 in 3.9s (compile: 2.7s, proxy.ts: 90ms, render: 1160ms)
+ GET /login 200 in 1059ms (compile: 145ms, proxy.ts: 23ms, render: 892ms)
+ POST /api/auth/refresh 401 in 87ms (compile: 27ms, proxy.ts: 47ms, render: 12ms)
+ GET /login 200 in 865ms (compile: 54ms, proxy.ts: 46ms, render: 765ms)
+ GET /dashboard 200 in 880ms (compile: 183ms, proxy.ts: 46ms, render: 651ms)
+ GET /login 200 in 183ms (compile: 29ms, proxy.ts: 45ms, render: 109ms)
+ POST /api/auth/refresh 200 in 80ms (compile: 14ms, proxy.ts: 20ms, render: 46ms)
+ POST /api/auth/refresh 200 in 101ms (compile: 15ms, proxy.ts: 28ms, render: 58ms)
+ POST /api/auth/refresh 401 in 76ms (compile: 18ms, proxy.ts: 24ms, render: 35ms)
+ POST /api/auth/refresh 401 in 41ms (compile: 4ms, proxy.ts: 14ms, render: 23ms)
+ GET /login 200 in 2.8s (compile: 2.6s, proxy.ts: 30ms, render: 220ms)
+Error: Route "/api/backend/[...path]" used `params.path`. `params` is a Promise and must be unwrapped with `await` or `React.use()` before accessing its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (src\app\api\backend\[...path]\route.ts:8:39)
+   6 |
+   7 | export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
+>  8 |   return proxyRequest(request, params.path);
+     |                                       ^
+   9 | }
+  10 |
+  11 | export async function POST(request: NextRequest, { params }: { params: { path: string[] } }) {
+⨯ TypeError: Cannot read properties of undefined (reading 'join')
+    at proxyRequest (src\app\api\backend\[...path]\route.ts:24:47)
+    at GET (src\app\api\backend\[...path]\route.ts:8:10)
+  22 |
+  23 | async function proxyRequest(request: NextRequest, pathParts: string[]) {
+> 24 |   const url = `${getApiBaseUrl()}/${pathParts.join('/')}${request.nextUrl.search}`;
+     |                                               ^
+  25 |   const headers = new Headers(request.headers);
+  26 |   headers.delete('host');
+  27 |
+ GET /api/backend/scenarios 500 in 4.2s (compile: 3.9s, proxy.ts: 14ms, render: 227ms)

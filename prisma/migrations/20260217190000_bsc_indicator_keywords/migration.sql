@@ -1,0 +1,2 @@
+ALTER TABLE "BscIndicator"
+ADD COLUMN IF NOT EXISTS "keywords" TEXT;

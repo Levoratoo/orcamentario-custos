@@ -1,0 +1,1 @@
+{"version":3,"file":"bsc.routes.js","sourceRoot":"","sources":["../../../../src/modules/bsc/bsc.routes.ts"],"names":[],"mappings":";;;AAAa,QAAA,cAAc,GAAG,KAAK,CAAC;AAEvB,QAAA,UAAU,GAAG;IACxB,MAAM,EAAE,QAAQ;IAChB,OAAO,EAAE,SAAS;IAClB,GAAG,EAAE,KAAK;IACV,UAAU,EAAE,YAAY;IACxB,UAAU,EAAE,YAAY;IACxB,QAAQ,EAAE,UAAU;IACpB,KAAK,EAAE,OAAO;CACN,CAAC"}

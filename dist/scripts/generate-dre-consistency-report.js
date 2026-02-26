@@ -1,0 +1,136 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
+const prisma_service_1 = require("../src/prisma/prisma.service");
+const dre_service_1 = require("../src/dre/dre.service");
+const toNumber = (value) => {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+const toCsvCell = (value) => {
+    const text = String(value ?? '');
+    if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+        return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+};
+async function main() {
+    const prisma = new prisma_service_1.PrismaService();
+    await prisma.$connect();
+    const dreService = new dre_service_1.DreService(prisma);
+    const years = [2024, 2025, 2026];
+    const lines = [
+        [
+            'year',
+            'month',
+            'parent_id',
+            'parent_codigo',
+            'parent_descricao',
+            'children_count',
+            'parent_previsto',
+            'children_previsto_sum',
+            'delta_previsto',
+            'status',
+        ].join(','),
+    ];
+    for (const year of years) {
+        const budget = await prisma.budget.findFirst({
+            where: { year, kind: 'BUDGET' },
+            orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }],
+        });
+        if (!budget)
+            continue;
+        const tree = await dreService.getTree(budget.id, 'DRE');
+        const rows = tree.rows;
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        const parents = rows.filter((row) => rows.some((child) => child.parentId === row.id));
+        for (const parent of parents) {
+            const children = rows.filter((row) => row.parentId === parent.id);
+            if (children.length === 0)
+                continue;
+            for (const monthKey of tree.months) {
+                const parentPrev = toNumber(parent.valoresPorMes?.[monthKey]?.previsto);
+                const sumChildrenPrev = children.reduce((sum, child) => sum + toNumber(child.valoresPorMes?.[monthKey]?.previsto), 0);
+                const delta = parentPrev - sumChildrenPrev;
+                const status = Math.abs(delta) <= 0.02 ? 'OK' : 'MISMATCH';
+                lines.push([
+                    year,
+                    monthKey,
+                    parent.id,
+                    parent.codigo ?? '',
+                    parent.descricao,
+                    children.length,
+                    parentPrev.toFixed(2),
+                    sumChildrenPrev.toFixed(2),
+                    delta.toFixed(2),
+                    status,
+                ]
+                    .map(toCsvCell)
+                    .join(','));
+            }
+            if (parent.parentId && !byId.has(parent.parentId)) {
+                lines.push([
+                    year,
+                    'ALL',
+                    parent.id,
+                    parent.codigo ?? '',
+                    parent.descricao,
+                    children.length,
+                    '',
+                    '',
+                    '',
+                    'MISSING_PARENT_REFERENCE',
+                ]
+                    .map(toCsvCell)
+                    .join(','));
+            }
+        }
+    }
+    const reportsDir = path.resolve(process.cwd(), 'reports');
+    fs.mkdirSync(reportsDir, { recursive: true });
+    const date = new Date();
+    const stamp = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const reportPath = path.join(reportsDir, `dre-consistency-${stamp}.csv`);
+    fs.writeFileSync(reportPath, `${lines.join('\n')}\n`, 'utf-8');
+    console.log(`Report generated: ${reportPath}`);
+    await prisma.$disconnect();
+}
+main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+});
+//# sourceMappingURL=generate-dre-consistency-report.js.map

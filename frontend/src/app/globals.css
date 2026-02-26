@@ -1,0 +1,772 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../styles/theme.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(1200px 560px at -8% -24%, var(--bg-accent-a), transparent 60%),
+      radial-gradient(980px 460px at 108% -6%, var(--bg-accent-b), transparent 62%),
+      radial-gradient(700px 360px at 52% 120%, var(--bg-accent-c), transparent 66%),
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--surface-1) 97%, transparent),
+        color-mix(in srgb, var(--surface-2) 50%, var(--surface-1))
+      );
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+}
+
+@layer components {
+  .card-glow {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border-base);
+    box-shadow: var(--shadow-soft);
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      background-color 180ms ease;
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--surface-1) 96%, white 4%),
+        color-mix(in srgb, var(--surface-2) 48%, var(--surface-1))
+      );
+  }
+
+  .card-glow:hover {
+    border-color: var(--accent-border);
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
+  }
+
+  .card-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), transparent 34%);
+    opacity: 0.58;
+    transition: opacity 180ms ease;
+  }
+
+  .dark .card-glow::after {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 38%);
+    opacity: 0.42;
+  }
+
+  .card-glow:hover::after {
+    opacity: 0.75;
+  }
+
+  .accent-divider {
+    position: relative;
+  }
+
+  .accent-divider::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    border-radius: 999px;
+    background: var(--accent-2);
+    box-shadow: none;
+  }
+
+  .surface {
+    background: var(--surface-1);
+    border: 1px solid var(--border-base);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .topbar-glow {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--surface-1) 98%, white 2%),
+        color-mix(in srgb, var(--surface-2) 64%, var(--surface-1))
+      );
+    border-bottom: 1px solid var(--border-base);
+    box-shadow:
+      0 10px 28px color-mix(in srgb, var(--accent-border) 20%, transparent),
+      inset 0 1px 0 color-mix(in srgb, white 65%, transparent);
+    backdrop-filter: blur(6px) saturate(1.1);
+  }
+
+  .surface-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border-base);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .surface-muted {
+    background: var(--surface-2);
+    border: 1px solid var(--border-base);
+  }
+
+  .surface-elevated {
+    background: var(--surface-1);
+    border: 1px solid var(--border-base);
+    box-shadow: var(--shadow-strong);
+  }
+
+  .section-shell {
+    border: 1px solid var(--border-base);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--surface-1) 96%, white 4%),
+        color-mix(in srgb, var(--surface-2) 42%, var(--surface-1))
+      );
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .dreOverlay {
+    @apply fixed inset-0 z-[9999] flex items-stretch justify-stretch p-0;
+  }
+
+  .dreOverlayModern {
+    background:
+      radial-gradient(920px 420px at 12% -12%, rgba(16, 185, 129, 0.16), transparent 62%),
+      radial-gradient(820px 360px at 88% 6%, rgba(14, 165, 233, 0.12), transparent 60%),
+      radial-gradient(600px 260px at 50% 120%, rgba(56, 189, 248, 0.08), transparent 65%),
+      rgba(4, 8, 10, 0.68);
+    backdrop-filter: blur(4px) saturate(1.1);
+  }
+
+  .dreModal {
+    @apply flex h-screen w-screen max-h-screen max-w-screen flex-col overflow-hidden rounded-none border-0 bg-[color:var(--surface-1)];
+  }
+
+  .dreModalModern {
+    background:
+      linear-gradient(180deg, rgba(7, 12, 11, 0.965), rgba(7, 10, 12, 0.985));
+    animation: dreModalFadeIn 220ms ease-out;
+    margin: 10px;
+    height: calc(100vh - 20px);
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+    max-width: calc(100vw - 20px);
+    border-radius: 20px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    box-shadow:
+      0 34px 90px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(167, 243, 208, 0.08);
+  }
+
+  .dreHeader {
+    @apply sticky top-0 z-20 border-b border-border/60 bg-[color:var(--surface-1)] px-6 py-4;
+  }
+
+  .dreModalModern .dreHeader {
+    background:
+      linear-gradient(180deg, rgba(12, 18, 16, 0.98), rgba(10, 15, 15, 0.95));
+    border-bottom-color: rgba(80, 215, 168, 0.25);
+    box-shadow: inset 0 -1px 0 rgba(80, 215, 168, 0.08);
+    backdrop-filter: blur(8px);
+  }
+
+  .dreModalModern .dreHeader h2 {
+    letter-spacing: 0.01em;
+    text-shadow: 0 0 18px rgba(110, 231, 183, 0.14);
+    font-size: clamp(20px, 2vw, 28px);
+  }
+
+  .dreModalModern .dreTitle {
+    font-weight: 700;
+  }
+
+  .dreModalModern .dreBudgetTabs {
+    border-color: rgba(148, 163, 184, 0.24);
+    background: rgba(8, 12, 15, 0.75);
+    box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08);
+    border-radius: 999px;
+    padding: 4px;
+  }
+
+  .dreBody {
+    @apply flex-1 overflow-auto px-6 py-4;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .dreTableWrap {
+    @apply w-full overflow-x-auto overflow-y-hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dreModalModern .dreTableWrap {
+    border: 1px solid rgba(80, 215, 168, 0.18);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(10, 15, 14, 0.72), rgba(8, 12, 14, 0.9));
+    box-shadow:
+      inset 0 1px 0 rgba(148, 163, 184, 0.06),
+      0 22px 50px rgba(0, 0, 0, 0.32);
+  }
+
+  .dreTable {
+    @apply min-w-[2200px] border-collapse text-[11px];
+  }
+
+  .dreCorner {
+    @apply sticky left-0 z-30 min-w-[320px] border-b border-border/60 bg-[color:var(--surface-2)] px-4 py-3 text-left text-xs uppercase text-muted-foreground;
+    width: 320px;
+    max-width: 320px;
+  }
+
+  .dreGroup {
+    @apply border-b border-border/60 px-4 py-3 text-center text-xs font-semibold uppercase text-muted-foreground;
+  }
+
+  .dreModalModern .dreGroup {
+    color: rgba(167, 243, 208, 0.85);
+    background: linear-gradient(180deg, rgba(17, 24, 22, 0.96), rgba(13, 18, 18, 0.92));
+  }
+
+  .dreSubHead {
+    @apply border-b border-border/60 px-3 py-2 text-center text-[11px] uppercase text-muted-foreground;
+  }
+
+  .dreModalModern .dreSubHead {
+    background: rgba(15, 23, 24, 0.88);
+  }
+
+  .dreModalModern .dreCorner {
+    background:
+      linear-gradient(180deg, rgba(14, 21, 20, 0.98), rgba(11, 17, 18, 0.95));
+    color: rgba(167, 243, 208, 0.92);
+    border-bottom-color: rgba(110, 231, 183, 0.25);
+  }
+
+  .dreSticky {
+    @apply sticky left-0 z-20 border-b border-border/40 bg-[color:var(--surface-1)] px-4 py-2;
+    width: 320px;
+    min-width: 320px;
+    max-width: 320px;
+    overflow: hidden;
+    background-color: color-mix(in srgb, var(--surface-1) 94%, transparent);
+  }
+
+  .dreModalModern .dreSticky {
+    background:
+      linear-gradient(180deg, rgba(10, 15, 14, 0.96), rgba(8, 12, 14, 0.96));
+    backdrop-filter: blur(3px);
+  }
+
+  .dreLabel {
+    @apply flex items-center gap-2 text-muted-foreground;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .dreLabelText {
+    @apply flex-1 truncate;
+    min-width: 0;
+  }
+
+  .dreLabelGroup {
+    @apply font-semibold text-foreground;
+  }
+
+  .dreValue {
+    @apply border-b border-border/40 px-3 py-2 text-right whitespace-nowrap tabular-nums;
+  }
+
+  .dreModalModern .dreValue {
+    border-bottom-color: rgba(100, 116, 139, 0.22);
+  }
+
+  .dreModalModern .dreTable tbody tr:nth-child(odd) {
+    background: rgba(148, 163, 184, 0.036);
+  }
+
+  .dreModalModern .dreTable tbody tr:hover {
+    background: rgba(45, 212, 191, 0.11);
+  }
+
+  .dreTable tbody tr.dreRowParent > td {
+    background: rgba(47, 119, 186, 0.07);
+  }
+
+  .dreTable tbody tr.dreRowParent > td.dreSticky {
+    position: sticky;
+    z-index: 22;
+    background: color-mix(in srgb, var(--surface-2) 94%, transparent);
+    box-shadow: inset 3px 0 0 rgba(47, 119, 186, 0.5);
+  }
+
+  .dreTable tbody tr.dreRowParentRoot > td {
+    background: rgba(47, 119, 186, 0.13);
+  }
+
+  .dreTable tbody tr.dreRowParentRoot > td.dreSticky {
+    z-index: 23;
+    background: color-mix(in srgb, var(--surface-3) 94%, transparent);
+    box-shadow:
+      inset 4px 0 0 rgba(47, 119, 186, 0.72),
+      inset 0 -1px 0 rgba(47, 119, 186, 0.2);
+  }
+
+  .dreToggle {
+    @apply flex h-5 w-5 items-center justify-center rounded-full border border-border/60 text-[11px] text-foreground;
+  }
+
+  .dreModalModern .dreToggle {
+    border-color: rgba(110, 231, 183, 0.45);
+    background: rgba(16, 185, 129, 0.1);
+    color: rgba(167, 243, 208, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(167, 243, 208, 0.09), 0 6px 14px rgba(16, 185, 129, 0.2);
+  }
+
+  .dreHomonymBadge {
+    @apply inline-flex items-center rounded-full border border-emerald-400/70 bg-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-100 shadow-sm shadow-emerald-500/20 cursor-help;
+  }
+
+  .dreModalModern .dreModeSwitch {
+    border-color: rgba(148, 163, 184, 0.24);
+    background: rgba(6, 10, 12, 0.78);
+    box-shadow:
+      inset 0 1px 0 rgba(148, 163, 184, 0.08),
+      0 8px 24px rgba(0, 0, 0, 0.28);
+  }
+
+  .dreModalModern .dreActions {
+    gap: 8px;
+  }
+
+  .dreModalModern .dreInfoChip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    background: rgba(10, 15, 17, 0.72);
+    color: rgba(203, 213, 225, 0.88);
+  }
+
+  .dreModalModern .dreBody::-webkit-scrollbar,
+  .dreModalModern .dreTableWrap::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+
+  .dreModalModern .dreBody::-webkit-scrollbar-thumb,
+  .dreModalModern .dreTableWrap::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.55), rgba(6, 182, 212, 0.45));
+    border-radius: 999px;
+  }
+
+  .dreModalModern .dreBody::-webkit-scrollbar-track,
+  .dreModalModern .dreTableWrap::-webkit-scrollbar-track {
+    background: rgba(15, 23, 24, 0.5);
+    border-radius: 999px;
+  }
+
+  .dreModalModern [role='tablist'] {
+    border-color: rgba(148, 163, 184, 0.24);
+    background: rgba(8, 12, 15, 0.75);
+    box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08);
+  }
+
+  .dreModalModern [role='tab'] {
+    border-radius: 999px;
+    transition: all 180ms ease;
+  }
+
+  .dreModalModern [role='tab'][data-state='active'] {
+    background: linear-gradient(180deg, rgba(52, 211, 153, 0.92), rgba(16, 185, 129, 0.86));
+    color: #04130d;
+    box-shadow: 0 8px 22px rgba(16, 185, 129, 0.32);
+  }
+
+  .dreModalModern .dreHeader .justify-self-end button {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: rgba(13, 19, 23, 0.72);
+    transition: all 160ms ease;
+  }
+
+  .dreModalModern .dreHeader .justify-self-end button:hover {
+    border-color: rgba(110, 231, 183, 0.55);
+    background: rgba(16, 185, 129, 0.16);
+    transform: translateY(-1px);
+  }
+
+  .dreModalModern .dreHeader .justify-self-center > button[data-slot='button'][data-variant='default'] {
+    background: linear-gradient(180deg, rgba(52, 211, 153, 0.95), rgba(16, 185, 129, 0.88));
+    color: #04130d;
+    box-shadow: 0 8px 22px rgba(16, 185, 129, 0.3);
+  }
+
+  @keyframes dreModalFadeIn {
+    0% {
+      opacity: 0;
+      transform: translateY(6px) scale(0.995);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Modern v2 overrides: cleaner SaaS look, less neon/legacy feeling */
+  .dreOverlayModern {
+    background:
+      radial-gradient(860px 320px at 18% -8%, rgba(74, 222, 128, 0.16), transparent 62%),
+      radial-gradient(700px 300px at 82% 2%, rgba(16, 185, 129, 0.12), transparent 60%),
+      rgba(3, 10, 8, 0.66);
+    backdrop-filter: blur(6px) saturate(1.05);
+  }
+
+  .dreModalModern {
+    margin: 14px;
+    height: calc(100vh - 28px);
+    width: calc(100vw - 28px);
+    max-height: calc(100vh - 28px);
+    max-width: calc(100vw - 28px);
+    border-radius: 24px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: linear-gradient(180deg, rgba(7, 12, 18, 0.98), rgba(5, 10, 16, 0.99));
+    box-shadow:
+      0 28px 70px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .dreModalModern .dreHeader {
+    border-bottom-color: rgba(148, 163, 184, 0.2);
+    box-shadow: none;
+    background: linear-gradient(180deg, rgba(9, 20, 16, 0.96), rgba(7, 16, 13, 0.92));
+  }
+
+  .dreModalModern .dreTitle,
+  .dreModalModern .dreHeader h2 {
+    text-shadow: none;
+    letter-spacing: 0;
+    font-weight: 700;
+  }
+
+  .dreModalModern .dreBudgetTabs,
+  .dreModalModern .dreModeSwitch,
+  .dreModalModern [role='tablist'] {
+    background: rgba(9, 22, 17, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: none;
+  }
+
+  .dreModalModern [role='tab'] {
+    color: rgba(203, 213, 225, 0.88);
+  }
+
+  .dreModalModern [role='tab'][data-state='active'] {
+    background: linear-gradient(180deg, rgba(74, 222, 128, 0.95), rgba(16, 185, 129, 0.9));
+    color: #032015;
+    box-shadow: 0 8px 18px rgba(16, 185, 129, 0.28);
+  }
+
+  .dreModalModern .dreHeader .justify-self-end button,
+  .dreModalModern .dreActions button {
+    background: rgba(9, 22, 17, 0.72);
+    border-color: rgba(148, 163, 184, 0.24);
+    color: rgba(226, 232, 240, 0.92);
+  }
+
+  .dreModalModern .dreHeader .justify-self-end button:hover,
+  .dreModalModern .dreActions button:hover {
+    background: rgba(16, 43, 33, 0.86);
+    border-color: rgba(148, 163, 184, 0.38);
+    transform: none;
+  }
+
+  .dreModalModern .dreActions > button[data-variant='default'] {
+    background: linear-gradient(180deg, rgba(74, 222, 128, 0.95), rgba(16, 185, 129, 0.9));
+    color: #032015;
+    border-color: rgba(134, 239, 172, 0.7);
+    box-shadow: 0 10px 22px rgba(16, 185, 129, 0.32);
+  }
+
+  .dreModalModern .dreInfoChip {
+    border-color: rgba(148, 163, 184, 0.24);
+    background: rgba(9, 22, 17, 0.66);
+    color: rgba(203, 213, 225, 0.88);
+  }
+
+  .dreModalModern .dreTableWrap {
+    border-color: rgba(148, 163, 184, 0.2);
+    background: rgba(6, 16, 13, 0.74);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 16px 34px rgba(2, 6, 23, 0.35);
+  }
+
+  .dreModalModern .dreCorner,
+  .dreModalModern .dreGroup,
+  .dreModalModern .dreSubHead {
+    text-transform: none;
+    letter-spacing: 0.01em;
+    font-size: 12px;
+    color: rgba(203, 213, 225, 0.9);
+    border-bottom-color: rgba(148, 163, 184, 0.22);
+  }
+
+  .dreModalModern .dreCorner {
+    background: rgba(9, 22, 17, 0.96);
+  }
+
+  .dreModalModern .dreGroup {
+    background: rgba(9, 22, 17, 0.92);
+    font-weight: 700;
+  }
+
+  .dreModalModern .dreSubHead {
+    background: rgba(8, 18, 14, 0.92);
+    font-weight: 600;
+  }
+
+  .dreModalModern .dreSticky {
+    background: rgb(6 16 13);
+    backdrop-filter: none;
+  }
+
+  .dreModalModern .dreLabelGroup {
+    font-weight: 600;
+  }
+
+  .dreModalModern .dreValue {
+    border-bottom-color: rgba(100, 116, 139, 0.2);
+    font-size: 12px;
+  }
+
+  .dreModalModern .dreTable tbody tr:nth-child(odd) {
+    background: rgba(8, 20, 16, 0.3);
+  }
+
+  .dreModalModern .dreTable tbody tr:hover {
+    background: rgba(20, 58, 45, 0.38);
+  }
+
+  .dreModalModern .dreToggle {
+    border-color: rgba(148, 163, 184, 0.36);
+    background: rgba(16, 43, 33, 0.7);
+    color: rgba(226, 232, 240, 0.96);
+    box-shadow: none;
+  }
+
+  /* Blue + white visual override */
+  .dreOverlayModern {
+    background:
+      radial-gradient(860px 320px at 18% -8%, rgba(47, 119, 186, 0.16), transparent 62%),
+      radial-gradient(700px 300px at 82% 2%, rgba(128, 176, 224, 0.2), transparent 60%),
+      rgba(240, 247, 255, 0.78);
+    backdrop-filter: blur(4px) saturate(1.02);
+  }
+
+  .dreModalModern {
+    border: 1px solid rgba(23, 75, 126, 0.2);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(239, 247, 255, 0.99));
+    box-shadow:
+      0 24px 54px rgba(23, 75, 126, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+
+  .dreModalModern .dreHeader {
+    border-bottom-color: rgba(23, 75, 126, 0.2);
+    background: linear-gradient(180deg, rgba(247, 252, 255, 0.98), rgba(232, 242, 254, 0.95));
+  }
+
+  .dreModalModern .dreBudgetTabs,
+  .dreModalModern .dreModeSwitch,
+  .dreModalModern [role='tablist'] {
+    background: rgba(225, 238, 252, 0.9);
+    border: 1px solid rgba(23, 75, 126, 0.2);
+    box-shadow: none;
+  }
+
+  .dreModalModern [role='tab'] {
+    color: rgba(20, 54, 91, 0.88);
+  }
+
+  .dreModalModern [role='tab'][data-state='active'] {
+    background: linear-gradient(180deg, rgba(57, 123, 188, 0.95), rgba(35, 95, 152, 0.92));
+    color: #ffffff;
+    box-shadow: 0 8px 18px rgba(23, 75, 126, 0.28);
+  }
+
+  .dreModalModern .dreHeader .justify-self-end button,
+  .dreModalModern .dreActions button {
+    background: rgba(237, 245, 253, 0.95);
+    border-color: rgba(23, 75, 126, 0.25);
+    color: rgba(20, 54, 91, 0.92);
+  }
+
+  .dreModalModern .dreHeader .justify-self-end button:hover,
+  .dreModalModern .dreActions button:hover {
+    background: rgba(220, 235, 250, 0.95);
+    border-color: rgba(23, 75, 126, 0.38);
+    transform: none;
+  }
+
+  .dreModalModern .dreActions > button[data-variant='default'] {
+    background: linear-gradient(180deg, rgba(57, 123, 188, 0.96), rgba(35, 95, 152, 0.93));
+    color: #ffffff;
+    border-color: rgba(23, 75, 126, 0.52);
+    box-shadow: 0 10px 22px rgba(23, 75, 126, 0.3);
+  }
+
+  .dreModalModern .dreInfoChip {
+    border-color: rgba(23, 75, 126, 0.22);
+    background: rgba(233, 243, 252, 0.9);
+    color: rgba(20, 54, 91, 0.88);
+  }
+
+  .dreModalModern .dreTableWrap {
+    border-color: rgba(23, 75, 126, 0.2);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.96),
+      0 16px 34px rgba(23, 75, 126, 0.16);
+  }
+
+  .dreModalModern .dreCorner,
+  .dreModalModern .dreGroup,
+  .dreModalModern .dreSubHead {
+    color: rgba(20, 54, 91, 0.9);
+    border-bottom-color: rgba(23, 75, 126, 0.2);
+  }
+
+  .dreModalModern .dreCorner {
+    background: rgba(233, 244, 255, 0.96);
+  }
+
+  .dreModalModern .dreGroup {
+    background: rgba(219, 235, 251, 0.95);
+  }
+
+  .dreModalModern .dreSubHead {
+    background: rgba(207, 227, 247, 0.92);
+  }
+
+  .dreModalModern .dreSticky {
+    background: rgba(245, 250, 255, 0.98);
+    backdrop-filter: none;
+  }
+
+  .dreModalModern .dreValue {
+    border-bottom-color: rgba(100, 137, 173, 0.2);
+  }
+
+  .dreModalModern .dreTable tbody tr:nth-child(odd) {
+    background: rgba(34, 95, 152, 0.035);
+  }
+
+  .dreModalModern .dreTable tbody tr:hover {
+    background: rgba(34, 95, 152, 0.1);
+  }
+
+  .dreModalModern .dreToggle {
+    border-color: rgba(23, 75, 126, 0.25);
+    background: rgba(221, 236, 250, 0.95);
+    color: rgba(20, 54, 91, 0.96);
+    box-shadow: none;
+  }
+
+  /* Ensure DRE table contrast in dark mode */
+  .dark .dreSticky {
+    background-color: color-mix(in srgb, var(--surface-1) 96%, transparent);
+  }
+
+  .dark .dreTable tbody tr.dreRowParent > td {
+    background: color-mix(in srgb, var(--accent-soft) 60%, var(--surface-1));
+  }
+
+  .dark .dreTable tbody tr.dreRowParent > td.dreSticky {
+    background: color-mix(in srgb, var(--surface-2) 95%, transparent);
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+
+  .dark .dreTable tbody tr.dreRowParentRoot > td {
+    background: color-mix(in srgb, var(--accent-soft) 78%, var(--surface-2));
+  }
+
+  .dark .dreTable tbody tr.dreRowParentRoot > td.dreSticky {
+    background: color-mix(in srgb, var(--surface-3) 95%, transparent);
+    box-shadow:
+      inset 4px 0 0 color-mix(in srgb, var(--accent) 78%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, var(--accent-2) 45%, transparent);
+  }
+
+  .dark .dreValue {
+    color: color-mix(in srgb, var(--foreground) 92%, white);
+  }
+
+  .dark .dreLabel {
+    color: color-mix(in srgb, var(--foreground) 78%, white);
+  }
+
+  .dark .dreLabelGroup {
+    color: color-mix(in srgb, var(--foreground) 96%, white);
+  }
+
+  .dark .dreToggle {
+    border-color: color-mix(in srgb, var(--accent-border) 85%, transparent);
+    background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-2));
+    color: color-mix(in srgb, var(--foreground) 92%, white);
+  }
+
+  .dreTogglePlaceholder {
+    @apply h-5 w-5;
+  }
+}
