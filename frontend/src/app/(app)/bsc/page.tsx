@@ -1,6 +1,14 @@
-import { redirect } from 'next/navigation';
+'use client';
 
-export default function BscIndexPage() {
-  redirect('/bsc/map');
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function BscPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/bsc/map');
+  }, [router]);
+
+  return null;
 }
-

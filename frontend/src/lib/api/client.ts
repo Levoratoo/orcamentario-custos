@@ -1,5 +1,6 @@
 import { ApiError } from '@/lib/types';
 import { parseApiError } from '@/lib/api/errors';
+import { portfolioDemoRequest } from '@/lib/portfolio-demo';
 
 export interface ApiClientOptions {
   accessToken?: string | null;
@@ -15,29 +16,29 @@ export function createApiClient(options: ApiClientOptions) {
     if (!headers.has('Content-Type') && !(init?.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
     }
+    try {
+      return await portfolioDemoRequest<T>(path, { ...init, headers }, options.accessToken);
+    } catch (error) {
+      const isUnauthorizedError =
+        Boolean(error && typeof error === 'object' && 'code' in error) &&
+        ['UNAUTHORIZED', 'NO_REFRESH'].includes(String((error as ApiError).code));
 
-    const response = await fetch(`/api/backend${path}`, {
-      ...init,
-      headers,
-    });
-
-    if (response.status === 401 && retry && options.refresh) {
-      const nextToken = await options.refresh();
-      if (nextToken) {
-        options.accessToken = nextToken;
-        return apiFetch(path, init, false);
+      if (isUnauthorizedError && retry && options.refresh) {
+        const nextToken = await options.refresh();
+        if (nextToken) {
+          options.accessToken = nextToken;
+          return apiFetch(path, init, false);
+        }
       }
-    }
 
-    if (!response.ok) {
-      throw await parseApiError(response);
+      if (isApiError(error)) {
+        throw error;
+      }
+      if (error instanceof Response) {
+        throw await parseApiError(error);
+      }
+      throw { code: 'HTTP_ERROR', message: 'Falha inesperada no provider mock.' } as ApiError;
     }
-
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    return (await response.json()) as T;
   };
 
   return { apiFetch };

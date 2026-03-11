@@ -1,5 +1,5 @@
 import { User } from '@/lib/types';
-import { parseJsonSafe } from '@/lib/api/errors';
+import { portfolioDemoAuth } from '@/lib/portfolio-demo';
 
 interface LoginResponse {
   accessToken: string;
@@ -17,30 +17,14 @@ interface RefreshResponse {
 
 export const apiAuth = {
   async login(identifier: string, password: string): Promise<LoginResponse> {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password }),
-    });
-
-    const payload = await parseJsonSafe(response);
-    if (!response.ok) {
-      throw payload || { message: response.statusText || 'Falha ao autenticar' };
-    }
-
-    return payload as LoginResponse;
+    return portfolioDemoAuth.login(identifier, password);
   },
 
   async refresh(): Promise<RefreshResponse> {
-    const response = await fetch('/api/auth/refresh', { method: 'POST' });
-    const payload = await parseJsonSafe(response);
-    if (!response.ok) {
-      throw payload || { message: response.statusText || 'Falha ao renovar' };
-    }
-    return payload as RefreshResponse;
+    return portfolioDemoAuth.refresh();
   },
 
   async logout(): Promise<void> {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await portfolioDemoAuth.logout();
   },
 };

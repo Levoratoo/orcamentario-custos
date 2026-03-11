@@ -1,45 +1,36 @@
-# Printbag Frontend
+# Frontend - Portfolio Demo
 
-Next.js 14 (App Router) com Tailwind + shadcn/ui, consumindo API Printbag.
+Next.js (App Router) configurado para export estatico com dados mock locais.
 
-## Requisitos
-- Node.js 18+
-
-## Como rodar
+## Execucao local
 
 ```bash
 npm install
 npm run dev
 ```
 
-Acesse `http://localhost:3003` (ou a porta exibida pelo Next).
+Aplicacao: `http://localhost:3004`
 
-## Build
+## Build estatico
 
 ```bash
 npm run build
-npm start
 ```
 
-## Variaveis de ambiente
+Arquivos gerados em `out/`.
 
-Crie `.env.local` baseado em `.env.example`.
+## Dados mock
 
-```
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
-API_BASE_URL=http://localhost:3000
-```
+Provider local: `src/lib/portfolio-demo.ts`
 
-## Estrutura
-- `src/app` rotas e layouts
-- `src/components` UI, layouts e providers
-- `src/features` componentes por dominio
-- `src/services` chamadas API
-- `src/hooks` hooks customizados
-- `src/lib` tipos e helpers
+- mock de auth (`portfolioDemoAuth`)
+- mock de API (`portfolioDemoRequest`)
+- contratos alinhados com `src/services/backend.ts`
 
-## Autenticacao
-- /api/auth/login: proxy para backend, grava refreshToken em cookie httpOnly
-- /api/auth/refresh: renova accessToken usando refreshToken cookie
-- /api/auth/logout: invalida refreshToken
-- /api/backend/*: proxy para chamadas do frontend
+## Publicacao Pages
+
+No GitHub Actions, `next.config.ts` aplica automaticamente:
+
+- `output: "export"`
+- `basePath` pelo nome do repositorio
+- `assetPrefix` compativel com subpath
