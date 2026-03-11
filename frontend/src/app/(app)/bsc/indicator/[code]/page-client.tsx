@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { useApiClient } from '@/hooks/use-api-client';
@@ -20,10 +20,7 @@ export default function BscIndicatorPage() {
   const { apiFetch } = useApiClient();
   const { user } = useAuth();
   const params = useParams<{ code: string }>();
-  const searchParams = useSearchParams();
   const code = decodeURIComponent(params.code);
-  const yearParamRaw = Number(searchParams.get('year'));
-  const initialYear = Number.isFinite(yearParamRaw) ? yearParamRaw : undefined;
 
   const query = useQuery({
     queryKey: ['bsc-indicator', code],
@@ -84,7 +81,6 @@ export default function BscIndicatorPage() {
       <IndicatorHeader indicator={query.data} />
       <IndicatorMonthlyTable
         monthly={query.data.monthly ?? []}
-        initialYear={initialYear}
         editable={user?.role === 'ADMIN' || user?.role === 'CONTROLLER'}
         onSaveActual={(payload) => updateActualMutation.mutateAsync(payload)}
         onSaveTarget={(payload) => updateTargetMutation.mutateAsync(payload)}
