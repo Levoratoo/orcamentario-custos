@@ -13,7 +13,20 @@ import { ErrorState } from '@/components/bsc/ErrorState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Filter, Layers3, Pencil, Search, SlidersHorizontal, Sparkles, Target, Users } from 'lucide-react';
+import { rechartsTheme } from '@/lib/recharts-theme';
+import { AlertTriangle, Filter, Layers3, Pencil, Search, SlidersHorizontal, Sparkles, Target, Users } from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 function uniqueSorted(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => (value ?? '').trim()).filter(Boolean))).sort((left, right) =>
@@ -29,8 +42,32 @@ function formatMetricValue(value: number | null | undefined) {
   }).format(value);
 }
 
+function normalizeCodeKey(value: string | null | undefined) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '')
+    .toUpperCase();
+}
+
 function formatPercent(value: number) {
   return `${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)}%`;
+}
+
+function normalizeBscStatus(value: unknown) {
+  const status = String(value ?? '').toUpperCase();
+  if (status === 'GREEN' || status === 'VERDE') return 'GREEN';
+  if (status === 'YELLOW' || status === 'AMARELO') return 'YELLOW';
+  if (status === 'RED' || status === 'VERMELHO') return 'RED';
+  return 'NO_DATA';
+}
+
+function shortPerspectiveLabel(value: string) {
+  if (value === 'FINANCEIRO') return 'FIN';
+  if (value === 'CLIENTE') return 'CLI';
+  if (value === 'PROCESSOS') return 'PROC';
+  if (value === 'APRENDIZADO_CRESCIMENTO') return 'APR';
+  return value.slice(0, 3).toUpperCase();
 }
 
 const PERSPECTIVE_ORDER = ['FINANCEIRO', 'CLIENTE', 'PROCESSOS', 'APRENDIZADO_CRESCIMENTO'];
@@ -191,13 +228,39 @@ export default function BscMapPage() {
   const [responsible, setResponsible] = useState('ALL');
   const [dataOwner, setDataOwner] = useState('ALL');
   const [keyword, setKeyword] = useState('ALL');
+  const [onlyBelowExpected, setOnlyBelowExpected] = useState(false);
 
   const indicatorsQuery = useQuery({
     queryKey: ['bsc-indicators-map'],
     queryFn: () => backend.getBscIndicators(apiFetch),
   });
 
+  const managementQuery = useQuery({
+    queryKey: ['bsc-management-map', year],
+    queryFn: () => backend.getBscManagement(apiFetch, year),
+  });
+
   const indicators = useMemo(() => indicatorsQuery.data ?? [], [indicatorsQuery.data]);
+
+  const yearOptions = useMemo(() => {
+    const indicatorYears = indicators.flatMap((indicator: any) =>
+      (indicator.yearTargets ?? []).map((target: any) => Number(target.year)),
+    );
+    const values = new Set<number>([...indicatorYears, new Date().getFullYear()]);
+    return Array.from(values).filter((value) => Number.isFinite(value)).sort((a, b) => b - a);
+  }, [indicators]);
+
+  const managementRows = useMemo(() => managementQuery.data?.rows ?? [], [managementQuery.data?.rows]);
+
+  const managementByIndicatorId = useMemo(
+    () => new Map(managementRows.map((row) => [String(row.indicatorId ?? ''), row] as const)),
+    [managementRows],
+  );
+
+  const managementByCode = useMemo(
+    () => new Map(managementRows.map((row) => [normalizeCodeKey(String(row.code ?? '')), row] as const)),
+    [managementRows],
+  );
 
   const filterOptions = useMemo(
     () => ({
@@ -218,7 +281,18 @@ export default function BscMapPage() {
     [indicators],
   );
 
-  const filteredRows = useMemo(() => {
+  const isBelowExpected = (row: any) => {
+    const management =
+      managementByIndicatorId.get(String(row.id ?? '')) ??
+      managementByCode.get(normalizeCodeKey(String(row.code ?? '')));
+    const latestMonth = [...(management?.months ?? [])]
+      .reverse()
+      .find((monthItem: any) => monthItem.target != null || monthItem.actual != null);
+    const status = String(latestMonth?.status ?? '').toUpperCase();
+    return status === 'YELLOW' || status === 'AMARELO' || status === 'RED' || status === 'VERMELHO';
+  };
+
+  const baseFilteredRows = useMemo(() => {
     const target = search.trim().toLowerCase();
     return indicators.filter((row: any) => {
       const rowPerspective = row.objective?.perspective?.name ?? '';
@@ -243,6 +317,16 @@ export default function BscMapPage() {
       );
     });
   }, [indicators, search, perspective, level, process, responsible, dataOwner, keyword]);
+
+  const belowExpectedCount = useMemo(
+    () => baseFilteredRows.filter((row: any) => isBelowExpected(row)).length,
+    [baseFilteredRows, managementByIndicatorId, managementByCode],
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!onlyBelowExpected) return baseFilteredRows;
+    return baseFilteredRows.filter((row: any) => isBelowExpected(row));
+  }, [baseFilteredRows, onlyBelowExpected, managementByIndicatorId, managementByCode]);
 
   const grouped = useMemo<GroupedPerspective[]>(() => {
     const perspectiveMap = new Map<string, Map<string, any[]>>();
@@ -275,13 +359,12 @@ export default function BscMapPage() {
     });
   }, [filteredRows]);
 
-  const yearsToShow = [2025, 2026, 2027, 2028];
-
   const activeFiltersCount = useMemo(() => {
-    const valueFilters = [perspective, level, process, responsible, dataOwner, keyword].filter((value) => value !== 'ALL')
-      .length;
+    const valueFilters =
+      [perspective, level, process, responsible, dataOwner, keyword].filter((value) => value !== 'ALL').length +
+      (onlyBelowExpected ? 1 : 0);
     return valueFilters + (search.trim() ? 1 : 0);
-  }, [perspective, level, process, responsible, dataOwner, keyword, search]);
+  }, [perspective, level, process, responsible, dataOwner, keyword, search, onlyBelowExpected]);
 
   const indicatorsWithTargetInYear = useMemo(
     () =>
@@ -302,6 +385,131 @@ export default function BscMapPage() {
     [filteredRows],
   );
 
+  const chartInsights = useMemo(() => {
+    const byPerspective = new Map<
+      string,
+      {
+        perspective: string;
+        indicators: number;
+        attainmentSum: number;
+        attainmentCount: number;
+        green: number;
+        yellow: number;
+        red: number;
+        noData: number;
+      }
+    >();
+
+    const topVarianceDataRaw: Array<{
+      code: string;
+      name: string;
+      perspective: string;
+      variancePct: number;
+    }> = [];
+
+    filteredRows.forEach((row: any) => {
+      const perspectiveName = String(row.objective?.perspective?.name ?? 'OUTROS');
+      const management =
+        managementByIndicatorId.get(String(row.id ?? '')) ??
+        managementByCode.get(normalizeCodeKey(String(row.code ?? '')));
+      const months = management?.months ?? [];
+      const latestMonth = [...months]
+        .reverse()
+        .find((monthItem: any) => monthItem.target != null || monthItem.actual != null);
+      const normalizedStatus = normalizeBscStatus(latestMonth?.status);
+      const target = Number(latestMonth?.target ?? 0);
+      const actual = Number(latestMonth?.actual ?? 0);
+      const attainmentRaw = Number(latestMonth?.attainment ?? NaN);
+      const attainmentPct = Number.isFinite(attainmentRaw) ? attainmentRaw * 100 : null;
+      const variancePct = target !== 0 ? ((actual - target) / Math.abs(target)) * 100 : null;
+
+      if (!byPerspective.has(perspectiveName)) {
+        byPerspective.set(perspectiveName, {
+          perspective: perspectiveName,
+          indicators: 0,
+          attainmentSum: 0,
+          attainmentCount: 0,
+          green: 0,
+          yellow: 0,
+          red: 0,
+          noData: 0,
+        });
+      }
+      const bucket = byPerspective.get(perspectiveName)!;
+      bucket.indicators += 1;
+      if (attainmentPct != null && Number.isFinite(attainmentPct)) {
+        bucket.attainmentSum += attainmentPct;
+        bucket.attainmentCount += 1;
+      }
+      if (normalizedStatus === 'GREEN') bucket.green += 1;
+      else if (normalizedStatus === 'YELLOW') bucket.yellow += 1;
+      else if (normalizedStatus === 'RED') bucket.red += 1;
+      else bucket.noData += 1;
+
+      if (variancePct != null && Number.isFinite(variancePct)) {
+        topVarianceDataRaw.push({
+          code: String(row.code ?? ''),
+          name: String(row.name ?? ''),
+          perspective: perspectiveName,
+          variancePct: Number(variancePct.toFixed(2)),
+        });
+      }
+    });
+
+    const perspectiveRows = Array.from(byPerspective.values()).sort((left, right) => {
+      const leftIndex = PERSPECTIVE_ORDER.indexOf(left.perspective);
+      const rightIndex = PERSPECTIVE_ORDER.indexOf(right.perspective);
+      return (leftIndex === -1 ? 99 : leftIndex) - (rightIndex === -1 ? 99 : rightIndex);
+    });
+
+    const performanceData = perspectiveRows.map((item) => {
+      const attainment =
+        item.attainmentCount > 0 ? Number((item.attainmentSum / item.attainmentCount).toFixed(1)) : 0;
+      return {
+        perspective: shortPerspectiveLabel(item.perspective),
+        perspectiveName: item.perspective,
+        target: 100,
+        attainment,
+      };
+    });
+
+    const statusData = perspectiveRows.map((item) => ({
+      perspective: shortPerspectiveLabel(item.perspective),
+      perspectiveName: item.perspective,
+      green: item.green,
+      yellow: item.yellow,
+      red: item.red,
+      noData: item.noData,
+    }));
+
+    const statusTotals = perspectiveRows.reduce(
+      (acc, item) => {
+        acc.green += item.green;
+        acc.yellow += item.yellow;
+        acc.red += item.red;
+        acc.noData += item.noData;
+        return acc;
+      },
+      { green: 0, yellow: 0, red: 0, noData: 0 },
+    );
+
+    const topVarianceData = topVarianceDataRaw
+      .sort((left, right) => Math.abs(right.variancePct) - Math.abs(left.variancePct))
+      .slice(0, 8)
+      .sort((left, right) => left.variancePct - right.variancePct)
+      .map((item) => ({
+        ...item,
+        label: item.code,
+      }));
+
+    return {
+      performanceData,
+      statusData,
+      topVarianceData,
+      statusTotals,
+    };
+  }, [filteredRows, managementByIndicatorId, managementByCode]);
+
   const clearFilters = () => {
     setSearch('');
     setPerspective('ALL');
@@ -310,6 +518,7 @@ export default function BscMapPage() {
     setResponsible('ALL');
     setDataOwner('ALL');
     setKeyword('ALL');
+    setOnlyBelowExpected(false);
   };
 
   return (
@@ -396,11 +605,36 @@ export default function BscMapPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="rounded-2xl border border-border/70 bg-[color:var(--surface-1)]/90 p-3 shadow-inner shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Filtro rapido</div>
+                <div className="text-xs text-muted-foreground">
+                  Destaque visual para metas com status abaixo do esperado no ultimo mes com dado.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOnlyBelowExpected((prev) => !prev)}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                  onlyBelowExpected
+                    ? 'border-rose-500/60 bg-rose-500/15 text-rose-300'
+                    : 'border-amber-500/60 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15',
+                )}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {onlyBelowExpected ? 'Mostrando abaixo do esperado' : 'Filtrar abaixo do esperado'}
+                <span className="rounded-full border border-current/40 px-2 py-0.5 text-[10px]">{belowExpectedCount}</span>
+              </button>
+            </div>
+          </div>
+
           <div className="grid gap-3 lg:grid-cols-[340px_1fr]">
             <div className="rounded-2xl border border-border/70 bg-[color:var(--surface-1)]/90 p-3 shadow-inner shadow-sm">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Ano</div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {yearsToShow.map((optionYear) => (
+                {yearOptions.map((optionYear) => (
                   <button
                     key={optionYear}
                     type="button"
@@ -507,6 +741,153 @@ export default function BscMapPage() {
           <Card className="overflow-hidden rounded-xl border-border/70 bg-[color:var(--surface-1)] shadow-sm">
             <CardHeader className="border-b border-border/70 bg-[color:var(--surface-2)]/70 pb-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base font-semibold text-foreground">Visao Grafica BSC</CardTitle>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge className="border border-emerald-400/50 bg-emerald-500/10 text-emerald-300">
+                    Verde: {chartInsights.statusTotals.green}
+                  </Badge>
+                  <Badge className="border border-amber-400/50 bg-amber-500/10 text-amber-300">
+                    Amarelo: {chartInsights.statusTotals.yellow}
+                  </Badge>
+                  <Badge className="border border-rose-400/50 bg-rose-500/10 text-rose-300">
+                    Vermelho: {chartInsights.statusTotals.red}
+                  </Badge>
+                  <Badge className="border border-border/70 bg-[color:var(--surface-1)] text-muted-foreground">
+                    Sem dados: {chartInsights.statusTotals.noData}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 xl:grid-cols-3">
+              <div className="rounded-2xl border border-border/70 bg-[color:var(--surface-1)]/90 p-3">
+                <div className="mb-1 text-sm font-semibold text-foreground">Atingimento Medio (ultimo fechamento)</div>
+                <p className="mb-3 text-xs text-muted-foreground">Base de referencia: 100% da meta no ultimo mes com dado.</p>
+                <div className="h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartInsights.performanceData} margin={{ top: 10, right: 12, left: 4, bottom: 0 }}>
+                      <CartesianGrid stroke={rechartsTheme.gridStroke} vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="perspective" tick={rechartsTheme.axisTick} stroke={rechartsTheme.axisStroke} />
+                      <YAxis
+                        tick={rechartsTheme.axisTick}
+                        stroke={rechartsTheme.axisStroke}
+                        tickFormatter={(value) => `${value}%`}
+                        domain={[0, 140]}
+                      />
+                      <ReferenceLine y={100} stroke="rgba(148,163,184,0.7)" strokeDasharray="4 3" />
+                      <Tooltip
+                        formatter={(value) => `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(Number(value ?? 0))}%`}
+                        labelFormatter={(_, payload) => String(payload?.[0]?.payload?.perspectiveName ?? '')}
+                        cursor={{ fill: 'rgba(47,119,186,0.10)' }}
+                        contentStyle={rechartsTheme.tooltipContent}
+                        labelStyle={rechartsTheme.tooltipLabel}
+                        itemStyle={rechartsTheme.tooltipItem}
+                      />
+                      <Bar dataKey="attainment" radius={[8, 8, 0, 0]} maxBarSize={42}>
+                        {chartInsights.performanceData.map((entry) => (
+                          <Cell
+                            key={`attainment-${entry.perspectiveName}`}
+                            fill={
+                              entry.attainment >= 100
+                                ? 'rgba(37, 99, 235, 0.86)'
+                                : entry.attainment >= 90
+                                  ? 'rgba(59, 130, 246, 0.70)'
+                                  : 'rgba(239, 68, 68, 0.72)'
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-[color:var(--surface-1)]/90 p-3">
+                <div className="mb-1 text-sm font-semibold text-foreground">Distribuicao de Status</div>
+                <p className="mb-3 text-xs text-muted-foreground">Contagem de indicadores por perspectiva no ultimo mes fechado.</p>
+                <div className="h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartInsights.statusData} margin={{ top: 10, right: 12, left: 4, bottom: 0 }}>
+                      <CartesianGrid stroke={rechartsTheme.gridStroke} vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="perspective" tick={rechartsTheme.axisTick} stroke={rechartsTheme.axisStroke} />
+                      <YAxis allowDecimals={false} tick={rechartsTheme.axisTick} stroke={rechartsTheme.axisStroke} />
+                      <Tooltip
+                        labelFormatter={(_, payload) => String(payload?.[0]?.payload?.perspectiveName ?? '')}
+                        cursor={{ fill: 'rgba(47,119,186,0.08)' }}
+                        contentStyle={rechartsTheme.tooltipContent}
+                        labelStyle={rechartsTheme.tooltipLabel}
+                        itemStyle={rechartsTheme.tooltipItem}
+                      />
+                      <Legend wrapperStyle={rechartsTheme.legend} />
+                      <Bar dataKey="green" name="Verde" stackId="status" fill="rgba(52, 211, 153, 0.88)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="yellow" name="Amarelo" stackId="status" fill="rgba(250, 204, 21, 0.88)" />
+                      <Bar dataKey="red" name="Vermelho" stackId="status" fill="rgba(251, 113, 133, 0.88)" />
+                      <Bar dataKey="noData" name="Sem dados" stackId="status" fill="rgba(148, 163, 184, 0.80)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-[color:var(--surface-1)]/90 p-3">
+                <div className="mb-1 text-sm font-semibold text-foreground">Top Desvios do Mes (%)</div>
+                <p className="mb-3 text-xs text-muted-foreground">Variação percentual entre realizado e meta no ultimo fechamento.</p>
+                {chartInsights.topVarianceData.length > 0 ? (
+                  <div className="h-[260px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={chartInsights.topVarianceData}
+                        layout="vertical"
+                        margin={{ top: 8, right: 14, left: 8, bottom: 0 }}
+                      >
+                        <CartesianGrid stroke={rechartsTheme.gridStroke} horizontal={false} strokeDasharray="3 3" />
+                        <XAxis
+                          type="number"
+                          tick={rechartsTheme.axisTickSmall}
+                          stroke={rechartsTheme.axisStroke}
+                          tickFormatter={(value) => `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(Number(value ?? 0))}%`}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="label"
+                          width={64}
+                          tick={rechartsTheme.axisTickSmall}
+                          stroke={rechartsTheme.axisStroke}
+                        />
+                        <ReferenceLine x={0} stroke="rgba(148,163,184,0.7)" />
+                        <Tooltip
+                          formatter={(value) => `${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value ?? 0))}%`}
+                          labelFormatter={(_, payload) => {
+                            const item = payload?.[0]?.payload;
+                            if (!item) return '';
+                            return `${item.code} - ${item.name}`;
+                          }}
+                          cursor={{ fill: 'rgba(47,119,186,0.08)' }}
+                          contentStyle={rechartsTheme.tooltipContent}
+                          labelStyle={rechartsTheme.tooltipLabel}
+                          itemStyle={rechartsTheme.tooltipItem}
+                        />
+                        <Bar dataKey="variancePct" radius={[6, 6, 6, 6]} maxBarSize={18}>
+                          {chartInsights.topVarianceData.map((entry) => (
+                            <Cell
+                              key={`variance-${entry.code}`}
+                              fill={entry.variancePct >= 0 ? 'rgba(37, 99, 235, 0.80)' : 'rgba(251, 113, 133, 0.82)'}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="flex h-[260px] items-center justify-center rounded-xl border border-dashed border-border/70 text-xs text-muted-foreground">
+                    Sem variacoes suficientes no recorte atual.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden rounded-xl border-border/70 bg-[color:var(--surface-1)] shadow-sm">
+            <CardHeader className="border-b border-border/70 bg-[color:var(--surface-2)]/70 pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-base font-semibold text-foreground">Objetivos e Indicadores</CardTitle>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <Badge className="border border-border/70 bg-[color:var(--surface-1)] text-muted-foreground">
@@ -524,32 +905,10 @@ export default function BscMapPage() {
             <CardContent className="p-0">
               <div className="overflow-auto">
                 <table className="w-full min-w-[1520px] border-collapse text-xs">
-                  <thead className="sticky top-0 z-20">
-                    <tr className="border-b border-border/70 bg-[color:var(--surface-3)] text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                      <th className="px-3 py-2.5 text-left w-[320px]">Objetivo / Indicador</th>
-                      <th className="px-2 py-2.5 text-left w-[130px]">Responsavel</th>
-                      <th className="px-2 py-2.5 text-left w-[130px]">Alimentador</th>
-                      <th className="px-2 py-2.5 text-center w-[60px]">Nivel</th>
-                      <th className="px-2 py-2.5 text-left w-[140px]">Processo</th>
-                      <th className="px-2 py-2.5 text-left w-[150px]">Palavra-chave</th>
-                      {yearsToShow.map((yearOption) => (
-                        <th
-                          key={yearOption}
-                          className={cn(
-                            'px-2 py-2.5 text-right w-[95px]',
-                            yearOption === year && 'bg-[color:var(--accent-soft)] text-[color:var(--accent)]',
-                          )}
-                        >
-                          Meta {yearOption}
-                        </th>
-                      ))}
-                      <th className="px-2 py-2.5 text-center w-[92px]">Acao</th>
-                    </tr>
-                  </thead>
                   <tbody>
                     {grouped.length === 0 ? (
                       <tr>
-                        <td colSpan={7 + yearsToShow.length} className="px-3 py-12 text-center text-sm text-muted-foreground">
+                        <td colSpan={9} className="px-3 py-12 text-center text-sm text-muted-foreground">
                           Nenhum indicador encontrado com os filtros atuais.
                         </td>
                       </tr>
@@ -569,8 +928,9 @@ export default function BscMapPage() {
                             key={perspectiveGroup.perspectiveName}
                             persp={perspectiveGroup}
                             config={config}
-                            yearsToShow={yearsToShow}
                             selectedYear={year}
+                            managementByIndicatorId={managementByIndicatorId}
+                            managementByCode={managementByCode}
                           />
                         );
                       })
@@ -589,8 +949,9 @@ export default function BscMapPage() {
 function PerspectiveGroup({
   persp,
   config,
-  yearsToShow,
   selectedYear,
+  managementByIndicatorId,
+  managementByCode,
 }: {
   persp: GroupedPerspective;
   config: {
@@ -602,10 +963,11 @@ function PerspectiveGroup({
     codeBadge: string;
     objectiveBg: string;
   };
-  yearsToShow: number[];
   selectedYear: number;
+  managementByIndicatorId: Map<string, any>;
+  managementByCode: Map<string, any>;
 }) {
-  const colCount = 7 + yearsToShow.length;
+  const colCount = 9;
   return (
     <>
       <tr className={cn('border-y-2', config.sectionBg, config.sectionBorder)}>
@@ -627,8 +989,9 @@ function PerspectiveGroup({
           key={objectiveGroup.objectiveName}
           obj={objectiveGroup}
           config={config}
-          yearsToShow={yearsToShow}
           selectedYear={selectedYear}
+          managementByIndicatorId={managementByIndicatorId}
+          managementByCode={managementByCode}
         />
       ))}
     </>
@@ -638,8 +1001,9 @@ function PerspectiveGroup({
 function ObjectiveGroup({
   obj,
   config,
-  yearsToShow,
   selectedYear,
+  managementByIndicatorId,
+  managementByCode,
 }: {
   obj: GroupedObjective;
   config: {
@@ -651,10 +1015,11 @@ function ObjectiveGroup({
     codeBadge: string;
     objectiveBg: string;
   };
-  yearsToShow: number[];
   selectedYear: number;
+  managementByIndicatorId: Map<string, any>;
+  managementByCode: Map<string, any>;
 }) {
-  const colCount = 7 + yearsToShow.length;
+  const colCount = 9;
   return (
     <>
       <tr className={cn('border-b border-border/60', config.objectiveBg)}>
@@ -664,10 +1029,35 @@ function ObjectiveGroup({
         </td>
       </tr>
 
+      <tr className="border-b border-border/70 bg-[color:var(--surface-3)] text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+        <td className="px-3 py-2.5 text-left w-[320px]">Objetivo / Indicador</td>
+        <td className="px-2 py-2.5 text-left w-[130px]">Responsavel</td>
+        <td className="px-2 py-2.5 text-left w-[130px]">Alimentador</td>
+        <td className="px-2 py-2.5 text-center w-[60px]">Nivel</td>
+        <td className="px-2 py-2.5 text-left w-[140px]">Processo</td>
+        <td className="px-2 py-2.5 text-left w-[150px]">Palavra-chave</td>
+        <td className="px-2 py-2.5 text-right w-[120px]">Meta anual ({selectedYear})</td>
+        <td className="px-2 py-2.5 text-right w-[140px]">Realizado acumulado</td>
+        <td className="px-2 py-2.5 text-center w-[92px]">Acao</td>
+      </tr>
+
       {obj.indicators.map((row: any, index: number) => {
-        const targets = new Map<number, number | null>(
-          (row.yearTargets ?? []).map((target: any) => [target.year, target.targetValue == null ? null : Number(target.targetValue)]),
-        );
+        const management =
+          managementByIndicatorId.get(String(row.id ?? '')) ??
+          managementByCode.get(normalizeCodeKey(String(row.code ?? '')));
+        const months = management?.months ?? [];
+        const annualTargetEntry = (row.yearTargets ?? []).find((target: any) => Number(target.year) === selectedYear);
+        const fallbackAnnualTargetFromMonths = months.reduce((sum: number, monthItem: any) => {
+          const target = monthItem?.target;
+          return target == null ? sum : sum + Number(target);
+        }, 0);
+        const annualTarget =
+          annualTargetEntry?.targetValue == null
+            ? fallbackAnnualTargetFromMonths > 0
+              ? fallbackAnnualTargetFromMonths
+              : null
+            : Number(annualTargetEntry.targetValue);
+        const realizedYtd = months.reduce((sum: number, monthItem: any) => sum + Number(monthItem.actual ?? 0), 0);
         return (
           <tr
             key={row.id}
@@ -678,7 +1068,7 @@ function ObjectiveGroup({
           >
             <td className="px-3 py-2 pl-8">
               <Link
-                href={`/bsc/indicator/${encodeURIComponent(row.code)}`}
+                href={`/bsc/indicator/${encodeURIComponent(row.code)}?year=${selectedYear}`}
                 className="inline-flex items-center gap-1.5 hover:underline"
               >
                 <Badge className={cn('px-1.5 py-0 text-[10px] font-medium', config.codeBadge)}>{row.code}</Badge>
@@ -690,20 +1080,15 @@ function ObjectiveGroup({
             <td className="px-2 py-2 text-center text-[13px] text-foreground">{row.level ?? '--'}</td>
             <td className="px-2 py-2 text-[13px] text-muted-foreground">{row.process ?? '--'}</td>
             <td className="px-2 py-2 text-[13px] text-muted-foreground line-clamp-1">{row.keywords ?? '--'}</td>
-            {yearsToShow.map((yearOption) => (
-              <td
-                key={yearOption}
-                className={cn(
-                  'px-2 py-2 text-right text-[14px] font-semibold tabular-nums',
-                  yearOption === selectedYear && 'bg-[color:var(--accent-soft)]/45 text-[color:var(--accent)]',
-                )}
-              >
-                {formatMetricValue(targets.get(yearOption))}
-              </td>
-            ))}
+            <td className="px-2 py-2 text-right text-[14px] font-semibold tabular-nums text-[color:var(--accent)]">
+              {formatMetricValue(annualTarget)}
+            </td>
+            <td className="px-2 py-2 text-right text-[14px] font-semibold tabular-nums text-foreground">
+              {formatMetricValue(realizedYtd)}
+            </td>
             <td className="px-2 py-2 text-center">
               <Link
-                href={`/bsc/indicator/${encodeURIComponent(row.code)}`}
+                href={`/bsc/indicator/${encodeURIComponent(row.code)}?year=${selectedYear}`}
                 className="inline-flex items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[color:var(--accent-soft)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--accent)] transition-colors hover:bg-[color:var(--surface-2)]"
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -716,4 +1101,3 @@ function ObjectiveGroup({
     </>
   );
 }
-
