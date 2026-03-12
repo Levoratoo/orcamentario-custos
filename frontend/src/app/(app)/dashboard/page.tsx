@@ -19,7 +19,6 @@ import { FaturamentoEbitdaChart } from '@/components/dashboard/FaturamentoEbitda
 import { DreRow } from '@/services/dre/types';
 import { DreModeToggle } from '@/components/shared/dre-mode-toggle';
 import { useDreMode } from '@/hooks/use-dre-mode';
-import { ProjectedInfoBadge } from '@/components/shared/projected-info-badge';
 
 type DrawerPayload = {
   title: string;
@@ -40,6 +39,7 @@ type DrawerPayload = {
 };
 
 type PeriodMode = 'monthly' | 'annual';
+type DashboardMode = 'previsto' | 'realizado';
 
 const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const kpiSourceLabelByKey: Record<string, string> = {
@@ -59,12 +59,10 @@ function normalizeLabel(value: string) {
 
 function getMonthValue(
   value: DreRow['valoresPorMes'][string],
-  mode: 'previsto' | 'realizado' | 'projetado' | 'dre' | 'ambos',
+  mode: DashboardMode,
 ) {
   if (!value) return 0;
-  if (mode === 'projetado') return value.projetado ?? value.previsto ?? 0;
-  if (mode === 'realizado' || mode === 'previsto') return value[mode] ?? 0;
-  return value.previsto ?? 0;
+  return value[mode] ?? 0;
 }
 
 function monthNumberFromKey(monthKey: string) {
@@ -78,9 +76,8 @@ function includeMonthInScope(monthKey: string, periodMode: PeriodMode, selectedM
   return month <= selectedMonth;
 }
 
-function modeLabel(mode: 'previsto' | 'realizado' | 'projetado' | 'dre' | 'ambos') {
+function modeLabel(mode: DashboardMode) {
   if (mode === 'realizado') return 'Realizado';
-  if (mode === 'projetado') return 'Variacao';
   return 'Orcado';
 }
 
@@ -113,21 +110,19 @@ export default function DashboardPage() {
   const compareYear = selected ? selected.year - 1 : selectedYear - 1;
   const compareActual = budgets.find((item) => item.year === compareYear && item.kind === 'ACTUAL' && item.status === 'READY');
   const compareBudget = budgets.find((item) => item.year === compareYear && item.kind === 'BUDGET' && item.status === 'READY');
+  const dashboardMode: DashboardMode = mode === 'realizado' ? 'realizado' : 'previsto';
   const compareSelected =
-    mode === 'realizado'
+    dashboardMode === 'realizado'
       ? compareActual ?? compareBudget ?? null
       : compareBudget ?? compareActual ?? null;
-  const compareBudgetIdForHook =
-    mode === 'projetado'
-      ? compareBudget?.id ?? compareActual?.id ?? null
-      : compareSelected?.id ?? null;
+  const compareBudgetIdForHook = compareSelected?.id ?? null;
   const compareLabel = compareSelected ? `vs ${compareYear}` : 'Sem base comparativa';
 
   const { model, main, compare, loading } = useDashboardData(
     selected?.id ?? null,
     compareBudgetIdForHook,
     selectedYear,
-    mode === 'realizado' || mode === 'projetado' ? mode : 'previsto',
+    dashboardMode,
     actualBudget?.id ?? null,
     compareActual?.id ?? null,
     periodMode,
@@ -148,6 +143,12 @@ export default function DashboardPage() {
       setMode('realizado');
     }
   }, [selected?.kind, selected?.id, setMode, selected]);
+
+  useEffect(() => {
+    if (mode !== 'previsto' && mode !== 'realizado') {
+      setMode('previsto');
+    }
+  }, [mode, setMode]);
 
   const childrenByParent = useMemo(() => {
     const map = new Map<string | null, string[]>();
@@ -194,10 +195,10 @@ export default function DashboardPage() {
     (row: DreRow) => {
       return Object.entries(row.valoresPorMes).reduce((sum, [monthKey, value]) => {
         if (!includeMonthInScope(monthKey, periodMode, selectedMonth)) return sum;
-        return sum + getMonthValue(value, mode);
+        return sum + getMonthValue(value, dashboardMode);
       }, 0);
     },
-    [mode, periodMode, selectedMonth],
+    [dashboardMode, periodMode, selectedMonth],
   );
 
   const scopedMonthEntries = useCallback(
@@ -212,7 +213,7 @@ export default function DashboardPage() {
     (row: DreRow, metricLabel: string) => {
       const components = scopedMonthEntries(row).map(([monthKey, value]) => ({
         label: monthKey,
-        value: getMonthValue(value, mode),
+        value: getMonthValue(value, dashboardMode),
       }));
       const result = components.reduce((sum, item) => sum + item.value, 0);
       return {
@@ -225,7 +226,7 @@ export default function DashboardPage() {
         note: `Linha base: ${row.descricao}`,
       };
     },
-    [scopedMonthEntries, mode, periodMode],
+    [scopedMonthEntries, dashboardMode, periodMode],
   );
 
   const buildRowsCalculation = useCallback(
@@ -273,13 +274,13 @@ export default function DashboardPage() {
         visao: periodMode === 'monthly' ? 'Mensal' : 'Anual acumulada',
         mesCorte: selectedMonth,
         referencia: periodLabel,
-        modo: modeLabel(mode),
+        modo: modeLabel(dashboardMode),
         comparativo: compareLabel,
         ano: selectedYear,
       },
       ...extra,
     }),
-    [periodMode, selectedMonth, periodLabel, mode, compareLabel, selectedYear],
+    [periodMode, selectedMonth, periodLabel, dashboardMode, compareLabel, selectedYear],
   );
 
   const openDrawer = useCallback((payload: DrawerPayload) => {
@@ -300,7 +301,7 @@ export default function DashboardPage() {
       const selectedRows = collectSubtree(row.id);
       openDrawer({
         title: kpiLabel,
-        subtitle: `Ano ${selectedYear} - ${modeLabel(mode)} ${compareLabel}`,
+        subtitle: `Ano ${selectedYear} - ${modeLabel(dashboardMode)} ${compareLabel}`,
         rows: selectedRows,
         summaryValue: value,
         summaryPct: receitaValue ? (value / receitaValue) * 100 : null,
@@ -324,7 +325,7 @@ export default function DashboardPage() {
       rowTotal,
       openDrawer,
       selectedYear,
-      mode,
+      dashboardMode,
       compareLabel,
       collectSubtree,
       buildRawPayload,
@@ -348,7 +349,7 @@ export default function DashboardPage() {
             : 'Top 5 linhas por maior valor no recorte da tela.';
       openDrawer({
         title: name,
-        subtitle: `${chartName} - Ano ${selectedYear} - ${modeLabel(mode)} ${compareLabel}`,
+        subtitle: `${chartName} - Ano ${selectedYear} - ${modeLabel(dashboardMode)} ${compareLabel}`,
         rows: selectedRows,
         summaryValue,
         summaryPct: receitaValue ? (summaryValue / receitaValue) * 100 : null,
@@ -366,14 +367,14 @@ export default function DashboardPage() {
       rowTotal,
       openDrawer,
       selectedYear,
-      mode,
+      dashboardMode,
       compareLabel,
       buildRawPayload,
       buildRowsCalculation,
     ],
   );
 
-  const drawerMode = mode === 'realizado' || mode === 'projetado' ? mode : 'previsto';
+  const drawerMode: DashboardMode = dashboardMode;
 
   const handleFaturamentoEbitdaPointClick = useCallback(
     (point: { month: string; metric: 'faturamento' | 'ebitda'; value: number }) => {
@@ -386,11 +387,11 @@ export default function DashboardPage() {
       const receitaRow = findRowByLabel('RECEITA BRUTA');
       const monthKey = monthKeyFromDisplay(point.month);
       const receitaMonthValue =
-        monthKey && receitaRow ? getMonthValue(receitaRow.valoresPorMes[monthKey], mode) : null;
+        monthKey && receitaRow ? getMonthValue(receitaRow.valoresPorMes[monthKey], dashboardMode) : null;
 
       openDrawer({
         title: `${metricTitle} - ${point.month}`,
-        subtitle: `Ano ${selectedYear} - ${modeLabel(mode)} ${compareLabel}`,
+        subtitle: `Ano ${selectedYear} - ${modeLabel(dashboardMode)} ${compareLabel}`,
         rows: sourceRows,
         monthFilter: monthKey,
         summaryValue: point.value,
@@ -421,7 +422,7 @@ export default function DashboardPage() {
         },
       });
     },
-    [findRowByLabel, collectSubtree, mode, selectedYear, compareLabel, openDrawer, buildRawPayload],
+    [findRowByLabel, collectSubtree, dashboardMode, selectedYear, compareLabel, openDrawer, buildRawPayload],
   );
 
   const faturamentoSeries = useMemo(
@@ -483,7 +484,7 @@ export default function DashboardPage() {
       <div className="-mx-2 border-b border-border/70 bg-background/95 px-2 py-3 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Dashboard - {modeLabel(mode)}</h1>
+            <h1 className="text-2xl font-semibold">Dashboard - {modeLabel(dashboardMode)}</h1>
             <p className="text-sm text-muted-foreground">Visao executiva por periodo selecionado.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -502,7 +503,6 @@ export default function DashboardPage() {
           <Badge className="border border-border/60 bg-[color:var(--surface-3)] text-muted-foreground">
             Periodo: {periodMode === 'monthly' ? 'Mensal' : 'Anual acumulado ate'} {monthNames[selectedMonth - 1]}
           </Badge>
-          {mode === 'projetado' && <ProjectedInfoBadge />}
         </div>
       )}
 
