@@ -19,6 +19,11 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+const demoAccess = {
+  identifier: 'admin',
+  password: '123456',
+};
+
 export default function LoginPage() {
   const { login } = useAuth();
   const form = useForm<FormValues>({
@@ -194,6 +199,15 @@ export default function LoginPage() {
                     >
                       {form.formState.isSubmitting ? 'Entrando...' : 'Entrar no painel'}
                     </Button>
+                    <div className="rounded-xl border border-sky-300/20 bg-slate-900/60 px-3 py-2 text-xs text-slate-300">
+                      <p className="font-semibold uppercase tracking-[0.08em] text-sky-200">Credenciais demo</p>
+                      <p className="mt-1">
+                        Login: <span className="font-medium text-slate-100">{demoAccess.identifier}</span>
+                      </p>
+                      <p>
+                        Senha: <span className="font-medium text-slate-100">{demoAccess.password}</span>
+                      </p>
+                    </div>
                   </form>
                 </Form>
               </CardContent>
