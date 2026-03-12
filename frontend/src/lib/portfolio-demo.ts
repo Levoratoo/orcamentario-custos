@@ -531,6 +531,16 @@ const createInitialState = (): DemoState => {
 const state = createInitialState();
 const dreTreeCache = new Map<string, DreTreeResponse>();
 
+const buildSyntheticRealized = (plannedValue: number, rowId: string, month: number, year: number) => {
+  if (!Number.isFinite(plannedValue) || Math.abs(plannedValue) < 0.0001) return 0;
+  const hash = Array.from(rowId).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const seasonal = Math.sin(((month + (hash % 6)) / 12) * Math.PI * 2) * 0.035;
+  const profile = ((hash % 11) - 5) * 0.004;
+  const yearDrift = (year - 2025) * 0.005;
+  const factor = 0.93 + seasonal + profile + yearDrift;
+  return Number((plannedValue * factor).toFixed(2));
+};
+
 const ensureTotals = () => {
   state.budgetItems = state.budgetItems.map((item) => ({
     ...item,
@@ -602,13 +612,19 @@ const getDreTreeForYear = (year: number): DreTreeResponse => {
         const targetMonthKey = monthRemap.get(sourceMonthKey) ?? sourceMonthKey;
         const month = Number(targetMonthKey.split('-')[1] ?? 0);
         const sourceValue = row.valoresPorMes[sourceMonthKey] ?? { previsto: 0, realizado: 0 };
-        const projetado = month <= closingMonth ? sourceValue.realizado : sourceValue.previsto;
+        const plannedValue = Number(sourceValue.previsto ?? 0);
+        const rawRealizedValue = Number(sourceValue.realizado ?? 0);
+        const realizedSeed = Math.abs(rawRealizedValue) > 0 ? rawRealizedValue : plannedValue;
+        const realizedValue =
+          year === 2026 ? buildSyntheticRealized(realizedSeed, row.id, Math.max(1, month), year) : rawRealizedValue;
+        const variationValue = Number((plannedValue - realizedValue).toFixed(2));
         return [
           targetMonthKey,
           {
-            previsto: Number(sourceValue.previsto ?? 0),
-            realizado: Number(sourceValue.realizado ?? 0),
-            projetado: Number(projetado ?? 0),
+            previsto: plannedValue,
+            realizado: realizedValue,
+            // Keep "projetado" key in the contract, but carry variation (Orcado - Realizado).
+            projetado: variationValue,
           },
         ];
       }),

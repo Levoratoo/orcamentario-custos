@@ -7,7 +7,7 @@ const base = {
 };
 
 describe('mergeProjected', () => {
-  it('sums projected when both sides exist', () => {
+  it('calculates variation when both sides exist', () => {
     const previsto = {
       ...base,
       months: ['2026-01'],
@@ -23,10 +23,10 @@ describe('mergeProjected', () => {
       ],
     } as any;
     const merged = mergeProjected(previsto, realizado);
-    expect(merged.rows[0].valoresPorMes['2026-01'].projetado).toBe(15);
+    expect(merged.rows[0].valoresPorMes['2026-01'].projetado).toBe(5);
   });
 
-  it('uses planned when realized missing', () => {
+  it('uses planned as full variation when realized missing', () => {
     const previsto = {
       ...base,
       months: ['2026-02'],
@@ -39,7 +39,7 @@ describe('mergeProjected', () => {
     expect(merged.rows[0].valoresPorMes['2026-02'].projetado).toBe(20);
   });
 
-  it('recomputes KPIs from merged dataset', () => {
+  it('recomputes KPIs from variation dataset', () => {
     const previsto = {
       ...base,
       months: ['2026-01'],
@@ -59,6 +59,6 @@ describe('mergeProjected', () => {
     const projected = mergeProjected(previsto, realizado);
     const model = mapDashboardData(projected as any, null, 2026, 'projetado');
     const receitaBruta = model.kpis.find((kpi) => kpi.key === 'receita-bruta');
-    expect(receitaBruta?.value).toBe(160);
+    expect(receitaBruta?.value).toBe(40);
   });
 });

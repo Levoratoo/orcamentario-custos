@@ -5,9 +5,9 @@ import { useDreMode } from '@/hooks/use-dre-mode';
 import { DreMode } from '@/services/dre/types';
 
 const modes: Array<{ key: DreMode; label: string }> = [
-  { key: 'previsto', label: 'Previsto' },
+  { key: 'previsto', label: 'Orcado' },
   { key: 'realizado', label: 'Realizado' },
-  { key: 'projetado', label: 'Projetado' },
+  { key: 'projetado', label: 'Variacao' },
 ];
 
 export function DreModeToggle() {

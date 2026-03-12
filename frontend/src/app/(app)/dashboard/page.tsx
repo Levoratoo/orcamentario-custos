@@ -7,18 +7,15 @@ import { useApiClient } from '@/hooks/use-api-client';
 import { useSelectedBudget } from '@/hooks/use-selected-budget';
 import { BudgetSelector } from '@/components/shared/budget-selector';
 import { EmptyState } from '@/components/shared/empty-state';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency, formatDeltaValue } from '@/lib/format';
-import { useAuth } from '@/components/providers/auth-provider';
-import { Activity, CircleDollarSign } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { DreDialog } from '@/features/budget-scenario/dre-dialog';
 import { useDashboardData } from '@/hooks/use-dashboard-data';
 import { calcDelta } from '@/services/dre/compare-dre';
 import { KpiCard } from '@/components/dashboard/KpiCard';
 import { RankingBar } from '@/components/dashboard/RankingBar';
-import { MonthlyLine } from '@/components/dashboard/MonthlyLine';
 import { DetailsDrawer } from '@/components/dashboard/DetailsDrawer';
+import { FaturamentoEbitdaChart } from '@/components/dashboard/FaturamentoEbitdaChart';
 import { DreRow } from '@/services/dre/types';
 import { DreModeToggle } from '@/components/shared/dre-mode-toggle';
 import { useDreMode } from '@/hooks/use-dre-mode';
@@ -33,6 +30,24 @@ type DrawerPayload = {
   deltaValue?: number | null;
   deltaPct?: number | null;
   monthFilter?: string | null;
+  rawPayload?: unknown;
+  calculation?: {
+    formula: string;
+    result: number;
+    components: Array<{ label: string; value: number }>;
+    note?: string;
+  };
+};
+
+type PeriodMode = 'monthly' | 'annual';
+
+const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const kpiSourceLabelByKey: Record<string, string> = {
+  'receita-bruta': 'RECEITA BRUTA',
+  ebitda: 'EBITDA',
+  'lucro-liquido': 'LUCRO LIQUIDO',
+  'receita-liquida': 'RECEITA LIQUIDA',
+  'custos-despesas': 'CUSTOS E DESPESAS',
 };
 
 function normalizeLabel(value: string) {
@@ -52,16 +67,44 @@ function getMonthValue(
   return value.previsto ?? 0;
 }
 
+function monthNumberFromKey(monthKey: string) {
+  return Number(monthKey.split('-')[1] ?? 0);
+}
+
+function includeMonthInScope(monthKey: string, periodMode: PeriodMode, selectedMonth: number) {
+  const month = monthNumberFromKey(monthKey);
+  if (!Number.isFinite(month) || month < 1 || month > 12) return false;
+  if (periodMode === 'monthly') return month === selectedMonth;
+  return month <= selectedMonth;
+}
+
+function modeLabel(mode: 'previsto' | 'realizado' | 'projetado' | 'dre' | 'ambos') {
+  if (mode === 'realizado') return 'Realizado';
+  if (mode === 'projetado') return 'Variacao';
+  return 'Orcado';
+}
+
+function monthKeyFromDisplay(monthDisplay: string) {
+  if (/^\d{4}-\d{2}$/.test(monthDisplay)) return monthDisplay;
+  const [month, year] = monthDisplay.split('/');
+  if (!month || !year) return null;
+  const parsedMonth = Number(month);
+  if (!Number.isFinite(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) return null;
+  return `${year}-${String(parsedMonth).padStart(2, '0')}`;
+}
+
 export default function DashboardPage() {
   const { apiFetch } = useApiClient();
   const { budgetId } = useSelectedBudget();
-  const { user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPayload, setDrawerPayload] = useState<DrawerPayload | null>(null);
   const [dreOpen, setDreOpen] = useState(false);
   const { mode, setMode } = useDreMode();
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('annual');
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
 
-  const { data: budgets = [] } = useQuery({ queryKey: ['budgets'], queryFn: () => backend.listBudgets(apiFetch) });
+  const budgetsQuery = useQuery({ queryKey: ['budgets'], queryFn: () => backend.listBudgets(apiFetch) });
+  const budgets = budgetsQuery.data ?? [];
   const selected = budgets.find((item) => item.id === budgetId) ?? null;
   const selectedYear = selected?.year ?? new Date().getFullYear();
   const actualBudget = selected
@@ -70,25 +113,41 @@ export default function DashboardPage() {
   const compareYear = selected ? selected.year - 1 : selectedYear - 1;
   const compareActual = budgets.find((item) => item.year === compareYear && item.kind === 'ACTUAL' && item.status === 'READY');
   const compareBudget = budgets.find((item) => item.year === compareYear && item.kind === 'BUDGET' && item.status === 'READY');
-  const compareSelected = compareActual ?? compareBudget ?? null;
+  const compareSelected =
+    mode === 'realizado'
+      ? compareActual ?? compareBudget ?? null
+      : compareBudget ?? compareActual ?? null;
+  const compareBudgetIdForHook =
+    mode === 'projetado'
+      ? compareBudget?.id ?? compareActual?.id ?? null
+      : compareSelected?.id ?? null;
   const compareLabel = compareSelected ? `vs ${compareYear}` : 'Sem base comparativa';
 
-  const { model, main, compare } = useDashboardData(
+  const { model, main, compare, loading } = useDashboardData(
     selected?.id ?? null,
-    compareSelected?.id ?? null,
+    compareBudgetIdForHook,
     selectedYear,
     mode === 'realizado' || mode === 'projetado' ? mode : 'previsto',
     actualBudget?.id ?? null,
     compareActual?.id ?? null,
+    periodMode,
+    selectedMonth,
+    selectedMonth,
   );
+
   const rows = main.rows;
+  const closingMonth = Math.max(1, Math.min(12, main.closingMonth ?? new Date().getMonth() + 1));
+
+  useEffect(() => {
+    setSelectedMonth(closingMonth);
+  }, [selected?.id, closingMonth]);
 
   useEffect(() => {
     if (!selected) return;
     if (selected.kind === 'ACTUAL') {
       setMode('realizado');
     }
-  }, [selected?.kind, selected?.id]);
+  }, [selected?.kind, selected?.id, setMode, selected]);
 
   const childrenByParent = useMemo(() => {
     const map = new Map<string | null, string[]>();
@@ -133,91 +192,281 @@ export default function DashboardPage() {
 
   const rowTotal = useCallback(
     (row: DreRow) => {
-      return Object.values(row.valoresPorMes).reduce((sum, value) => {
-        const next = getMonthValue(value, mode);
-        return sum + (next ?? 0);
+      return Object.entries(row.valoresPorMes).reduce((sum, [monthKey, value]) => {
+        if (!includeMonthInScope(monthKey, periodMode, selectedMonth)) return sum;
+        return sum + getMonthValue(value, mode);
       }, 0);
     },
-    [mode],
+    [mode, periodMode, selectedMonth],
   );
 
-  const openDrawer = useCallback(
-    (payload: DrawerPayload) => {
-      setDrawerPayload(payload);
-      setDrawerOpen(true);
-    },
-    [],
+  const scopedMonthEntries = useCallback(
+    (row: DreRow) =>
+      Object.entries(row.valoresPorMes).filter(([monthKey]) =>
+        includeMonthInScope(monthKey, periodMode, selectedMonth),
+      ),
+    [periodMode, selectedMonth],
   );
+
+  const buildRowCalculation = useCallback(
+    (row: DreRow, metricLabel: string) => {
+      const components = scopedMonthEntries(row).map(([monthKey, value]) => ({
+        label: monthKey,
+        value: getMonthValue(value, mode),
+      }));
+      const result = components.reduce((sum, item) => sum + item.value, 0);
+      return {
+        formula:
+          periodMode === 'monthly'
+            ? `${metricLabel} = valor da linha no mes selecionado`
+            : `${metricLabel} = soma dos meses ate o corte`,
+        result,
+        components,
+        note: `Linha base: ${row.descricao}`,
+      };
+    },
+    [scopedMonthEntries, mode, periodMode],
+  );
+
+  const buildRowsCalculation = useCallback(
+    (rowsForCalc: DreRow[], metricLabel: string) => {
+      const components = rowsForCalc.map((row) => ({
+        label: row.descricao,
+        value: rowTotal(row),
+      }));
+      const result = components.reduce((sum, item) => sum + item.value, 0);
+      return {
+        formula: `${metricLabel} = soma das contas selecionadas`,
+        result,
+        components,
+      };
+    },
+    [rowTotal],
+  );
+
+  const periodLabel =
+    periodMode === 'monthly'
+      ? `${monthNames[selectedMonth - 1]}/${selectedYear}`
+      : `Jan ate ${monthNames[selectedMonth - 1]}/${selectedYear}`;
+
+  const buildRawPayload = useCallback(
+    (
+      chartName: string,
+      selectedItem: string,
+      sourceRows: DreRow[],
+      calcRule: string,
+      extra?: Record<string, unknown>,
+    ) => ({
+      grafico: chartName,
+      itemSelecionado: selectedItem,
+      regraCalculo: calcRule,
+      origem: {
+        endpoint: '/dre/tree?mode=DRE',
+        linhasBase: sourceRows.slice(0, 80).map((row) => ({
+          id: row.id,
+          descricao: row.descricao,
+          nivel: row.nivel,
+          parentId: row.parentId ?? null,
+        })),
+      },
+      periodo: {
+        visao: periodMode === 'monthly' ? 'Mensal' : 'Anual acumulada',
+        mesCorte: selectedMonth,
+        referencia: periodLabel,
+        modo: modeLabel(mode),
+        comparativo: compareLabel,
+        ano: selectedYear,
+      },
+      ...extra,
+    }),
+    [periodMode, selectedMonth, periodLabel, mode, compareLabel, selectedYear],
+  );
+
+  const openDrawer = useCallback((payload: DrawerPayload) => {
+    setDrawerPayload(payload);
+    setDrawerOpen(true);
+  }, []);
 
   const handleKpiClick = useCallback(
-    (label: string) => {
-      const row = findRowByLabel(label);
-      const compareRow = compare.rows.find((item) => normalizeLabel(item.descricao).includes(normalizeLabel(label)));
+    (kpiKey: string, kpiLabel: string) => {
+      const sourceLabel = kpiSourceLabelByKey[kpiKey] ?? kpiLabel;
+      const row = findRowByLabel(sourceLabel);
+      const compareRow = compare.rows.find((item) => normalizeLabel(item.descricao).includes(normalizeLabel(sourceLabel)));
       const receitaRow = findRowByLabel('RECEITA BRUTA');
       if (!row) return;
       const value = rowTotal(row);
       const receitaValue = receitaRow ? rowTotal(receitaRow) : null;
       const delta = compareRow ? calcDelta(value, rowTotal(compareRow)) : null;
+      const selectedRows = collectSubtree(row.id);
       openDrawer({
-        title: label,
-        subtitle: `Ano ${selectedYear} - ${mode === 'realizado' ? 'Realizado' : mode === 'projetado' ? 'Projetado' : 'Previsto'} ${compareLabel}`,
-        rows: collectSubtree(row.id),
+        title: kpiLabel,
+        subtitle: `Ano ${selectedYear} - ${modeLabel(mode)} ${compareLabel}`,
+        rows: selectedRows,
         summaryValue: value,
         summaryPct: receitaValue ? (value / receitaValue) * 100 : null,
         deltaValue: delta?.abs ?? null,
         deltaPct: delta?.pct ?? null,
+        rawPayload: buildRawPayload(
+          'KPIs',
+          `${kpiLabel} (${sourceLabel})`,
+          selectedRows,
+          `Soma da linha "${row.descricao}" no recorte ${periodMode === 'monthly' ? 'mensal' : 'anual acumulado'}.`,
+          {
+            linhaPrincipal: { id: row.id, descricao: row.descricao },
+          },
+        ),
+        calculation: buildRowCalculation(row, kpiLabel),
       });
     },
-    [findRowByLabel, collectSubtree, selectedYear, compareYear, openDrawer, compare.rows, rowTotal],
+    [
+      findRowByLabel,
+      compare.rows,
+      rowTotal,
+      openDrawer,
+      selectedYear,
+      mode,
+      compareLabel,
+      collectSubtree,
+      buildRawPayload,
+      periodMode,
+      buildRowCalculation,
+    ],
   );
 
   const handleRankingClick = useCallback(
-    (name: string) => {
+    (chartName: string, name: string) => {
       const row = rows.find((item) => item.descricao === name);
       const selectedRows = row ? collectSubtree(row.id) : rows.filter((item) => item.descricao.includes(name));
       const receitaRow = findRowByLabel('RECEITA BRUTA');
       const summaryValue = selectedRows.reduce((sum, item) => sum + rowTotal(item), 0);
       const receitaValue = receitaRow ? rowTotal(receitaRow) : null;
+      const calcRule =
+        chartName === 'Top ganhos por linha de produto'
+          ? 'Somatorio de valores positivos agrupado pela conta pai da arvore DRE, excluindo rotulos com "CATALOGOS".'
+          : chartName === 'Top perdas'
+            ? 'Top 5 linhas com menor valor (mais negativas) no recorte da tela.'
+            : 'Top 5 linhas por maior valor no recorte da tela.';
       openDrawer({
         title: name,
-        subtitle: `Ano ${selectedYear} - ${mode === 'realizado' ? 'Realizado' : mode === 'projetado' ? 'Projetado' : 'Previsto'} ${compareLabel}`,
+        subtitle: `${chartName} - Ano ${selectedYear} - ${modeLabel(mode)} ${compareLabel}`,
         rows: selectedRows,
         summaryValue,
         summaryPct: receitaValue ? (summaryValue / receitaValue) * 100 : null,
+        rawPayload: buildRawPayload(chartName, name, selectedRows, calcRule, {
+          agrupamento: chartName === 'Top ganhos por linha de produto' ? 'Conta pai DRE (linha de produto)' : 'Conta DRE',
+          valorSelecionado: summaryValue,
+        }),
+        calculation: buildRowsCalculation(selectedRows, name),
       });
     },
-    [rows, collectSubtree, selectedYear, compareYear, openDrawer, rowTotal, findRowByLabel],
+    [
+      rows,
+      collectSubtree,
+      findRowByLabel,
+      rowTotal,
+      openDrawer,
+      selectedYear,
+      mode,
+      compareLabel,
+      buildRawPayload,
+      buildRowsCalculation,
+    ],
   );
 
-  const handleMonthClick = useCallback(
-    (month: string) => {
-      openDrawer({
-        title: 'Volatilidade mensal',
-        subtitle: `Mes ${month} - Ano ${selectedYear} (${mode === 'realizado' ? 'Realizado' : mode === 'projetado' ? 'Projetado' : 'Previsto'})`,
-        rows,
-        summaryValue: model?.volatility.series.find((item) => item.month === month)?.value ?? 0,
-        monthFilter: month,
-      });
-    },
-    [openDrawer, rows, selectedYear, model],
-  );
-
-  const totalAnnual = main.summary?.totalAnual ?? 0;
   const drawerMode = mode === 'realizado' || mode === 'projetado' ? mode : 'previsto';
-  const currentMonthKey = `${selectedYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-  const currentMonthValue = main.summary?.porMes?.[currentMonthKey]?.total ?? 0;
-  const compareMonthKey = `${compareYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-  const bestWorst = useMemo(() => {
-    if (!model?.volatility.series.length) return { best: null, worst: null };
-    const series = model.volatility.series;
-    const best = series.reduce((acc, item) => (item.value > acc.value ? item : acc), series[0]);
-    const worst = series.reduce((acc, item) => (item.value < acc.value ? item : acc), series[0]);
-    return {
-      best: { month: best.month.split('-').reverse().join('/'), value: best.value },
-      worst: { month: worst.month.split('-').reverse().join('/'), value: worst.value },
-    };
-  }, [model]);
+  const handleFaturamentoEbitdaPointClick = useCallback(
+    (point: { month: string; metric: 'faturamento' | 'ebitda'; value: number }) => {
+      const isFaturamento = point.metric === 'faturamento';
+      const metricTitle = isFaturamento ? 'Faturamento' : 'EBITDA';
+      const sourceLabel = isFaturamento ? 'RECEITA BRUTA' : 'EBITDA';
+      const row = findRowByLabel(sourceLabel);
+      if (!row) return;
+      const sourceRows = collectSubtree(row.id);
+      const receitaRow = findRowByLabel('RECEITA BRUTA');
+      const monthKey = monthKeyFromDisplay(point.month);
+      const receitaMonthValue =
+        monthKey && receitaRow ? getMonthValue(receitaRow.valoresPorMes[monthKey], mode) : null;
+
+      openDrawer({
+        title: `${metricTitle} - ${point.month}`,
+        subtitle: `Ano ${selectedYear} - ${modeLabel(mode)} ${compareLabel}`,
+        rows: sourceRows,
+        monthFilter: monthKey,
+        summaryValue: point.value,
+        summaryPct: receitaMonthValue ? (point.value / receitaMonthValue) * 100 : null,
+        rawPayload: buildRawPayload(
+          'Faturamento x EBITDA',
+          `${metricTitle} (${point.month})`,
+          sourceRows,
+          `Serie mensal da linha "${row.descricao}" para o mes selecionado.`,
+          {
+            serie: metricTitle,
+            mesSelecionado: point.month,
+            mesChave: monthKey,
+            valorSelecionado: point.value,
+            linhaPrincipal: { id: row.id, descricao: row.descricao },
+          },
+        ),
+        calculation: {
+          formula: `${metricTitle} (${point.month}) = valor da linha no mes selecionado`,
+          result: point.value,
+          components: [
+            {
+              label: row.descricao,
+              value: point.value,
+            },
+          ],
+          note: monthKey ? `Mes de referencia: ${monthKey}` : undefined,
+        },
+      });
+    },
+    [findRowByLabel, collectSubtree, mode, selectedYear, compareLabel, openDrawer, buildRawPayload],
+  );
+
+  const faturamentoSeries = useMemo(
+    () => model?.kpis.find((item) => item.key === 'receita-bruta')?.series ?? [],
+    [model],
+  );
+  const ebitdaSeries = useMemo(
+    () => model?.kpis.find((item) => item.key === 'ebitda')?.series ?? [],
+    [model],
+  );
+
+  if (budgetsQuery.isLoading || loading) {
+    return (
+      <div className="space-y-6">
+        <div className="-mx-2 border-b border-border/70 bg-background/95 px-2 py-3 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold">Dashboard</h1>
+              <p className="text-sm text-muted-foreground">Carregando indicadores...</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="h-10 w-[220px]" />
+              <Skeleton className="h-10 w-[200px]" />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton key={`dashboard-kpi-loading-${index}`} className="h-[176px] rounded-2xl" />
+          ))}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Skeleton className="h-[260px] rounded-2xl" />
+          <Skeleton className="h-[260px] rounded-2xl" />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Skeleton className="h-[260px] rounded-2xl" />
+          <Skeleton className="h-[260px] rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
   if (!model) {
     return (
@@ -231,17 +480,17 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            Dashboard - {mode === 'realizado' ? 'Realizado' : mode === 'projetado' ? 'Projetado' : 'Previsto'}
-          </h1>
-          <p className="text-sm text-muted-foreground">Visao executiva do orcamento selecionado.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <BudgetSelector />
-          <DreModeToggle />
-          <DreDialog defaultBudgetId={selected?.id} open={dreOpen} onOpenChange={setDreOpen} />
+      <div className="-mx-2 border-b border-border/70 bg-background/95 px-2 py-3 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">Dashboard - {modeLabel(mode)}</h1>
+            <p className="text-sm text-muted-foreground">Visao executiva por periodo selecionado.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <BudgetSelector />
+            <DreModeToggle />
+            <DreDialog defaultBudgetId={selected?.id} open={dreOpen} onOpenChange={setDreOpen} />
+          </div>
         </div>
       </div>
 
@@ -251,13 +500,13 @@ export default function DashboardPage() {
             Status: {selected.status}
           </Badge>
           <Badge className="border border-border/60 bg-[color:var(--surface-3)] text-muted-foreground">
-            Modo: {mode === 'previsto' ? 'Previsto' : mode === 'realizado' ? 'Realizado' : 'Projetado'}
+            Periodo: {periodMode === 'monthly' ? 'Mensal' : 'Anual acumulado ate'} {monthNames[selectedMonth - 1]}
           </Badge>
           {mode === 'projetado' && <ProjectedInfoBadge />}
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {model.kpis.map((kpi) => (
           <KpiCard
             key={kpi.key}
@@ -266,78 +515,21 @@ export default function DashboardPage() {
             yoyValue={kpi.yoyValue}
             yoyPct={kpi.yoyPct}
             series={kpi.series}
-            onClick={() => handleKpiClick(kpi.label)}
+            onClick={() => handleKpiClick(kpi.key, kpi.label)}
           />
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="card-glow relative overflow-hidden rounded-2xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total anual</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className={totalAnnual < 0 ? 'text-rose-600 text-2xl font-semibold' : 'text-2xl font-semibold'}>
-              {formatCurrency(totalAnnual)}
-            </div>
-            <Badge className="border border-[color:var(--accent-border)] bg-[color:var(--accent-soft)] text-[color:var(--accent)]">
-              {selected ? 'Atualizado' : '-'}
-            </Badge>
-          </CardContent>
-          <CircleDollarSign className="absolute right-4 top-4 h-8 w-8 text-[color:var(--accent-soft)]" />
-        </Card>
-        {user?.role === 'COORDINATOR' && (
-          <Card className="card-glow relative overflow-hidden rounded-2xl">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Meu escopo</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className={totalAnnual < 0 ? 'text-rose-600 text-2xl font-semibold' : 'text-2xl font-semibold'}>
-                {formatCurrency(totalAnnual)}
-              </div>
-              <Badge className="border border-[color:var(--accent-border)] bg-[color:var(--accent-soft)] text-[color:var(--accent)]">
-                Em acompanhamento
-              </Badge>
-            </CardContent>
-          </Card>
-        )}
-        <Card className="card-glow relative overflow-hidden rounded-2xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total mes atual</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className={currentMonthValue < 0 ? 'text-rose-600 text-2xl font-semibold' : 'text-2xl font-semibold'}>
-              {formatCurrency(currentMonthValue)}
-            </div>
-            <Badge className="border border-[color:var(--accent-border)] bg-[color:var(--accent-soft)] text-[color:var(--accent)]">
-              {selected ? 'Mes corrente' : '-'}
-            </Badge>
-            {compare.summary && (
-              <div className={currentMonthValue < 0 ? 'text-rose-600' : 'text-[color:var(--accent)]'}>
-                {(() => {
-                  const compareValue = compare.summary?.porMes?.[compareMonthKey]?.total ?? 0;
-                  const delta = calcDelta(currentMonthValue, compareValue);
-                  return formatDeltaValue(delta.abs, delta.pct, compareYear);
-                })()}
-              </div>
-            )}
-          </CardContent>
-          <Activity className="absolute right-4 top-4 h-8 w-8 text-[color:var(--accent-soft)]" />
-        </Card>
-      </div>
-
       <div className="grid gap-4 xl:grid-cols-2">
-        <MonthlyLine
-          title="Volatilidade mensal"
-          series={model.volatility.series.map((item) => ({ ...item, month: item.month.split('-').reverse().join('/') }))}
-          best={bestWorst.best}
-          worst={bestWorst.worst}
-          onPointClick={(point) => handleMonthClick(point.month.split('/').reverse().join('-'))}
+        <FaturamentoEbitdaChart
+          faturamentoSeries={faturamentoSeries.map((item) => ({ ...item, month: item.month.split('-').reverse().join('/') }))}
+          ebitdaSeries={ebitdaSeries.map((item) => ({ ...item, month: item.month.split('-').reverse().join('/') }))}
+          onPointClick={handleFaturamentoEbitdaPointClick}
         />
         <RankingBar
           title="Top centros de custo"
           items={model.topCostCenters}
-          onItemClick={(item) => handleRankingClick(item.name)}
+          onItemClick={(item) => handleRankingClick('Top centros de custo', item.name)}
         />
       </div>
 
@@ -345,12 +537,12 @@ export default function DashboardPage() {
         <RankingBar
           title="Top contas"
           items={model.topAccounts}
-          onItemClick={(item) => handleRankingClick(item.name)}
+          onItemClick={(item) => handleRankingClick('Top contas', item.name)}
         />
         <RankingBar
-          title="Top ganhos"
+          title="Top ganhos por linha de produto"
           items={model.topGains}
-          onItemClick={(item) => handleRankingClick(item.name)}
+          onItemClick={(item) => handleRankingClick('Top ganhos por linha de produto', item.name)}
           accent="var(--accent-2)"
         />
       </div>
@@ -359,7 +551,7 @@ export default function DashboardPage() {
         <RankingBar
           title="Top perdas"
           items={model.topLosses}
-          onItemClick={(item) => handleRankingClick(item.name)}
+          onItemClick={(item) => handleRankingClick('Top perdas', item.name)}
           accent="#f87171"
         />
       </div>
@@ -380,7 +572,8 @@ export default function DashboardPage() {
             deltaPct: drawerPayload.deltaPct,
             compareYear,
           }}
-          rawPayload={user?.role === 'ADMIN' ? { model } : undefined}
+          rawPayload={drawerPayload.rawPayload}
+          calculation={drawerPayload.calculation}
           onViewDre={() => {
             setDrawerOpen(false);
             setDreOpen(true);

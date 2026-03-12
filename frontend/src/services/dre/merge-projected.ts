@@ -5,7 +5,7 @@ function getRowKey(row: DreRow) {
   return row.id;
 }
 
-export function mergeProjected(previsto: DreResult, realizado: DreResult, closingMonth = 0): DreResult {
+export function mergeProjected(previsto: DreResult, realizado: DreResult, _closingMonth = 0): DreResult {
   const months = Array.from(new Set([...(previsto.months ?? []), ...(realizado.months ?? [])])).sort();
   const rowMap = new Map<string, DreRow>();
 
@@ -52,11 +52,10 @@ export function mergeProjected(previsto: DreResult, realizado: DreResult, closin
   rowMap.forEach((row) => {
     months.forEach((monthKey) => {
       const values = row.valoresPorMes[monthKey] ?? { previsto: 0, realizado: 0, projetado: 0 };
-      const monthNumber = Number(monthKey.split('-')[1] ?? 0);
-      const useRealizado = closingMonth > 0 && monthNumber <= closingMonth;
       row.valoresPorMes[monthKey] = {
         ...values,
-        projetado: useRealizado ? (values.realizado ?? 0) : (values.previsto ?? 0),
+        // Keep "projetado" field for compatibility, but store variation (Orcado - Realizado).
+        projetado: Number(((values.previsto ?? 0) - (values.realizado ?? 0)).toFixed(2)),
       };
     });
   });
