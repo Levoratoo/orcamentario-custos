@@ -20,7 +20,7 @@ import { useApiClient } from '@/hooks/use-api-client';
 import { Budget } from '@/lib/types';
 import { getCollapsedRootRows } from '@/services/dre/collapsed-structure';
 
-type DialogDreMode = 'PREVISTO' | 'REALIZADO' | 'PROJETADO' | 'DRE';
+type DialogDreMode = 'ORCADO' | 'REALIZADO' | 'DRE';
 
 interface DreDialogProps {
   defaultBudgetId?: string | null;
@@ -32,6 +32,37 @@ function buildBudgetLabel(budget: Budget, yearCounts: Map<number, number>) {
   const count = yearCounts.get(budget.year) ?? 0;
   const suffix = count > 1 ? ` (v${budget.version})` : '';
   return `${budget.name} (${budget.year})${suffix}`;
+}
+
+function calcVariation(orcado: number, realizado: number) {
+  const value = orcado - realizado;
+  const pctBase = Math.abs(orcado);
+  const pct = pctBase > 0 ? (value / pctBase) * 100 : null;
+  return { value, pct };
+}
+
+function formatSignedPercent(value: number | null) {
+  if (value === null || Number.isNaN(value)) return '--';
+  const signal = value > 0 ? '+' : '';
+  return `${signal}${value.toFixed(1).replace('.', ',')}%`;
+}
+
+function variationDirectionLabel(value: number) {
+  if (value < 0) return 'subiu';
+  if (value > 0) return 'diminuiu';
+  return 'estavel';
+}
+
+function variationValueClass(value: number) {
+  if (value < 0) return 'text-rose-600 dark:text-rose-300';
+  if (value > 0) return 'text-blue-700 dark:text-sky-300';
+  return 'text-foreground';
+}
+
+function variationMetaClass(value: number) {
+  if (value < 0) return 'text-rose-500 dark:text-rose-300/90';
+  if (value > 0) return 'text-blue-600 dark:text-sky-300/90';
+  return 'text-muted-foreground';
 }
 
 export function DreDialog({ defaultBudgetId, open: openProp, onOpenChange }: DreDialogProps) {
@@ -338,17 +369,16 @@ export function DreDialog({ defaultBudgetId, open: openProp, onOpenChange }: Dre
   }, [rows]);
 
   const modeOptions: Array<{ key: DialogDreMode; label: string }> = [
-    { key: 'PREVISTO', label: 'Previsto' },
+    { key: 'ORCADO', label: 'Orcado' },
     { key: 'REALIZADO', label: 'Realizado' },
-    { key: 'PROJETADO', label: 'Projetado' },
     { key: 'DRE', label: 'DRE' },
   ];
 
   const getMonthValueByMode = useCallback(
     (value: { previsto?: number; realizado?: number; projetado?: number } | undefined, activeMode: DialogDreMode) => {
-      if (activeMode === 'PREVISTO') return value?.previsto ?? 0;
+      if (activeMode === 'ORCADO') return value?.previsto ?? 0;
       if (activeMode === 'REALIZADO') return value?.realizado ?? 0;
-      return value?.projetado ?? value?.previsto ?? 0;
+      return value?.previsto ?? 0;
     },
     [],
   );
@@ -425,27 +455,27 @@ export function DreDialog({ defaultBudgetId, open: openProp, onOpenChange }: Dre
                         <table className="dreTable">
                         <thead>
                           <tr>
-                            <th className="dreCorner">Conta Contabil</th>
+                            <th className="dreCorner dreHeadMainCorner">Conta Contabil</th>
                             {columns.monthColumns.map((group) => (
-                              <th key={`group-${group.label}`} colSpan={group.colSpan} className="dreGroup">
+                              <th key={`group-${group.label}`} colSpan={group.colSpan} className="dreGroup dreHeadMain">
                                 {group.label}
                               </th>
                             ))}
-                            <th className="dreGroup" colSpan={columns.totalColSpan}>
+                            <th className="dreGroup dreHeadMain" colSpan={columns.totalColSpan}>
                               Total
                             </th>
                           </tr>
                           {columns.isFullDre && (
                             <tr>
-                              <th className="dreCorner">&nbsp;</th>
+                              <th className="dreCorner dreHeadSubCorner">&nbsp;</th>
                               {months.flatMap((monthKey) => ([
-                                <th key={`${monthKey}-previsto`} className="dreSubHead">Previsto</th>,
-                                <th key={`${monthKey}-realizado`} className="dreSubHead">Realizado</th>,
-                                <th key={`${monthKey}-projetado`} className="dreSubHead">Projetado</th>,
+                                <th key={`${monthKey}-previsto`} className="dreSubHead dreHeadSub">Orcado</th>,
+                                <th key={`${monthKey}-realizado`} className="dreSubHead dreHeadSub">Realizado</th>,
+                                <th key={`${monthKey}-variacao`} className="dreSubHead dreHeadSub">Variacao</th>,
                               ]))}
-                              <th className="dreSubHead">Previsto</th>
-                              <th className="dreSubHead">Realizado</th>
-                              <th className="dreSubHead">Projetado</th>
+                              <th className="dreSubHead dreHeadSub">Orcado</th>
+                              <th className="dreSubHead dreHeadSub">Realizado</th>
+                              <th className="dreSubHead dreHeadSub">Variacao</th>
                             </tr>
                           )}
                         </thead>
@@ -468,10 +498,9 @@ export function DreDialog({ defaultBudgetId, open: openProp, onOpenChange }: Dre
                                 const value = node.valoresPorMes[monthKey] ?? { previsto: 0, realizado: 0, projetado: 0 };
                                 acc.previsto += value.previsto ?? 0;
                                 acc.realizado += value.realizado ?? 0;
-                                acc.projetado += value.projetado ?? value.previsto ?? 0;
                                 return acc;
                               },
-                              { previsto: 0, realizado: 0, projetado: 0 },
+                              { previsto: 0, realizado: 0 },
                             );
                             return (
                               <tr
@@ -512,11 +541,19 @@ export function DreDialog({ defaultBudgetId, open: openProp, onOpenChange }: Dre
                                 {columns.isFullDre
                                   ? months.map((monthKey, monthIndex) => {
                                       const value = node.valoresPorMes[monthKey] ?? { previsto: 0, realizado: 0, projetado: 0 };
+                                      const variation = calcVariation(value.previsto ?? 0, value.realizado ?? 0);
                                       return (
                                         <Fragment key={`${node.id}-${monthIndex}-group`}>
                                           <td className="dreValue">{formatCurrencyBRL(value.previsto ?? 0)}</td>
                                           <td className="dreValue">{formatCurrencyBRL(value.realizado ?? 0)}</td>
-                                          <td className="dreValue">{formatCurrencyBRL(value.projetado ?? value.previsto ?? 0)}</td>
+                                          <td className="dreValue">
+                                            <div className={variationValueClass(variation.value)}>
+                                              {formatCurrencyBRL(variation.value)}
+                                            </div>
+                                            <div className={`text-[10px] ${variationMetaClass(variation.value)}`}>
+                                              {`${formatSignedPercent(variation.pct)} ${variationDirectionLabel(variation.value)}`}
+                                            </div>
+                                          </td>
                                         </Fragment>
                                       );
                                     })
@@ -532,7 +569,23 @@ export function DreDialog({ defaultBudgetId, open: openProp, onOpenChange }: Dre
                                   <>
                                     <td className="dreValue">{formatCurrencyBRL(totals.previsto)}</td>
                                     <td className="dreValue">{formatCurrencyBRL(totals.realizado)}</td>
-                                    <td className="dreValue">{formatCurrencyBRL(totals.projetado)}</td>
+                                    <td className="dreValue">
+                                      {(() => {
+                                        const totalVariation = calcVariation(totals.previsto, totals.realizado);
+                                        return (
+                                          <>
+                                            <div
+                                              className={variationValueClass(totalVariation.value)}
+                                            >
+                                              {formatCurrencyBRL(totalVariation.value)}
+                                            </div>
+                                            <div className={`text-[10px] ${variationMetaClass(totalVariation.value)}`}>
+                                              {`${formatSignedPercent(totalVariation.pct)} ${variationDirectionLabel(totalVariation.value)}`}
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
+                                    </td>
                                   </>
                                 ) : (
                                   <td className="dreValue">{formatCurrencyBRL(getMonthValueByMode(totals, mode))}</td>
