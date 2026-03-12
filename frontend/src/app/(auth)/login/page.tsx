@@ -91,7 +91,7 @@ export default function LoginPage() {
           className="hidden flex-1 pr-10 lg:block"
         >
           <span className="inline-flex items-center rounded-full border border-sky-300/35 bg-sky-500/12 px-4 py-1 text-xs font-medium tracking-[0.12em] text-sky-100">
-            PLANEJAMENTO PRINTBAG
+            PLANEJAMENTO NEXORA
           </span>
           <h1 className="mt-6 text-4xl font-semibold leading-tight text-white xl:text-5xl">
             Controle orcamentario
@@ -208,6 +208,13 @@ export default function LoginPage() {
                         Senha: <span className="font-medium text-slate-100">{demoAccess.password}</span>
                       </p>
                     </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 w-full rounded-xl border-sky-300/30 bg-slate-900/35 text-xs text-slate-200 hover:bg-slate-900/60 hover:text-slate-100"
+                    >
+                      Todos os dados deste portfolio sao ficticios
+                    </Button>
                   </form>
                 </Form>
               </CardContent>

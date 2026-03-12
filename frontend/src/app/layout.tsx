@@ -6,7 +6,7 @@ import { AppProviders } from '@/components/providers/app-providers';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Printbag | Planejamento Orcamentario',
+  title: 'Nexora | Planejamento Orcamentario',
   description: 'Planejamento Orcamentario por Coordenador',
 };
 

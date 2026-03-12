@@ -34,9 +34,9 @@ import type {
 } from '@/services/backend';
 
 const API_LATENCY_MS = 220;
-const TOKEN_STORAGE_KEY = 'printbag:demo:token';
-const USER_STORAGE_KEY = 'printbag:demo:user';
-const LOGGED_OUT_STORAGE_KEY = 'printbag:demo:logged-out';
+const TOKEN_STORAGE_KEY = 'nexora:demo:token';
+const USER_STORAGE_KEY = 'nexora:demo:user';
+const LOGGED_OUT_STORAGE_KEY = 'nexora:demo:logged-out';
 const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MONTHS_2D = MONTHS.map((month) => String(month).padStart(2, '0'));
 
@@ -267,10 +267,10 @@ const paginate = <T>(items: T[], page: number, pageSize: number): Paginated<T> =
 const createInitialState = (): DemoState => {
   const createdAt = now();
   const users: User[] = [
-    { id: 'user-admin', name: 'Admin Portfolio', username: 'admin', email: 'admin@printbag.local', role: 'ADMIN', mustChangePassword: false, active: true, createdAt, updatedAt: createdAt },
-    { id: 'user-controller', name: 'Controller Portfolio', username: 'controller', email: 'controller@printbag.local', role: 'CONTROLLER', mustChangePassword: false, active: true, createdAt, updatedAt: createdAt },
-    { id: 'user-coord-ana', name: 'Ana Costa', username: 'ana.costa', email: 'ana.costa@printbag.local', role: 'COORDINATOR', mustChangePassword: false, active: true, createdAt, updatedAt: createdAt },
-    { id: 'user-coord-joao', name: 'Joao Lima', username: 'joao.lima', email: 'joao.lima@printbag.local', role: 'COORDINATOR', mustChangePassword: false, active: true, createdAt, updatedAt: createdAt },
+    { id: 'user-admin', name: 'Admin Portfolio', username: 'admin', email: 'admin@nexora.local', role: 'ADMIN', mustChangePassword: false, active: true, createdAt, updatedAt: createdAt },
+    { id: 'user-controller', name: 'Controller Portfolio', username: 'controller', email: 'controller@nexora.local', role: 'CONTROLLER', mustChangePassword: false, active: true, createdAt, updatedAt: createdAt },
+    { id: 'user-coord-ana', name: 'Ana Costa', username: 'ana.costa', email: 'ana.costa@nexora.local', role: 'COORDINATOR', mustChangePassword: false, active: true, createdAt, updatedAt: createdAt },
+    { id: 'user-coord-joao', name: 'Joao Lima', username: 'joao.lima', email: 'joao.lima@nexora.local', role: 'COORDINATOR', mustChangePassword: false, active: true, createdAt, updatedAt: createdAt },
   ];
 
   const scenarios: Scenario[] = [

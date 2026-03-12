@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { DreMode } from '@/services/dre/types';
 
-const STORAGE_KEY = 'printbag:dre-mode';
-const SESSION_KEY = 'printbag:dre-mode:session';
-const EVENT_NAME = 'printbag:dre-mode-change';
+const STORAGE_KEY = 'nexora:dre-mode';
+const SESSION_KEY = 'nexora:dre-mode:session';
+const EVENT_NAME = 'nexora:dre-mode-change';
 
 export function useDreMode() {
   const [mode, setMode] = useState<DreMode>('previsto');

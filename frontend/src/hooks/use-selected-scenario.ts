@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'printbag:scenario';
-const SESSION_KEY = 'printbag:scenario:session';
-const EVENT_NAME = 'printbag:scenario-change';
+const STORAGE_KEY = 'nexora:scenario';
+const SESSION_KEY = 'nexora:scenario:session';
+const EVENT_NAME = 'nexora:scenario-change';
 
 export function useSelectedScenario() {
   const [scenarioId, setScenarioId] = useState<string | null>(null);

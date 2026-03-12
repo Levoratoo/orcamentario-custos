@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'printbag:budget';
-const SESSION_KEY = 'printbag:budget:session';
-const EVENT_NAME = 'printbag:budget-change';
+const STORAGE_KEY = 'nexora:budget';
+const SESSION_KEY = 'nexora:budget:session';
+const EVENT_NAME = 'nexora:budget-change';
 
 export function useSelectedBudget() {
   const [budgetId, setBudgetId] = useState<string | null>(() => {

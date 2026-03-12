@@ -25,7 +25,7 @@ const navItems: NavItem[] = [
   { href: '/audit', label: 'Auditoria', icon: ShieldCheck, roles: ['ADMIN', 'CONTROLLER'] },
   { href: '/planejamento', label: 'Contas por Coordenador', icon: ChartPie, roles: ['ADMIN', 'CONTROLLER', 'COORDINATOR'] },
   { href: '/dre/analises', label: 'Analises DRE', icon: BarChart3, roles: ['ADMIN', 'CONTROLLER', 'COORDINATOR'] },
-  { href: '/bsc/map', label: 'Estrategia BSC', icon: Target, roles: ['ADMIN', 'CONTROLLER', 'COORDINATOR'] },
+  { href: '/bsc', label: 'Estrategia BSC', icon: Target, roles: ['ADMIN', 'CONTROLLER', 'COORDINATOR'] },
   { href: '/minhas-contas', label: 'Minhas Contas', icon: UserCheck, roles: ['ADMIN', 'CONTROLLER'], hidden: true },
   { href: '/padrinhos', label: 'Gestao de Coordenador', icon: Users, roles: ['ADMIN'], hidden: true },
   { href: '/orcamentos', label: 'Orcamentos', icon: Wallet, roles: ['ADMIN'], hidden: true },
@@ -169,7 +169,7 @@ export function Sidebar({ className }: SidebarProps) {
       )}
     >
       <div className="mb-4 space-y-2 px-1">
-        <div className="text-lg font-semibold tracking-tight text-foreground">Printbag</div>
+        <div className="text-lg font-semibold tracking-tight text-foreground">Nexora</div>
         <div className="text-xs text-muted-foreground">Planejamento Orcamentario</div>
         <Badge className="border border-border/70 bg-[color:var(--surface-1)] text-[10px] text-muted-foreground">
           {visibleItems.length} modulos
