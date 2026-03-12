@@ -24,6 +24,12 @@ interface DetailsDrawerProps {
   monthFilter?: string | null;
   mode?: 'previsto' | 'realizado' | 'projetado';
   rawPayload?: unknown;
+  calculation?: {
+    formula: string;
+    result: number;
+    components: Array<{ label: string; value: number }>;
+    note?: string;
+  };
   onViewDre?: () => void;
 }
 
@@ -83,6 +89,7 @@ export function DetailsDrawer({
   monthFilter,
   mode = 'previsto',
   rawPayload,
+  calculation,
   onViewDre,
 }: DetailsDrawerProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -167,6 +174,34 @@ export function DetailsDrawer({
             {Boolean(rawPayload) && <TabsTrigger value="data">Dados</TabsTrigger>}
           </TabsList>
           <TabsContent value="detail" className="min-h-0 flex-1 overflow-auto px-4">
+            {calculation && (
+              <div className="mb-3 rounded-lg border border-border/60 bg-[color:var(--surface-2)] p-3">
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  Conta do calculo
+                </div>
+                <div className="text-sm text-foreground">{calculation.formula}</div>
+                <div className={cn('mt-1 text-sm font-semibold tabular-nums', calculation.result < 0 && 'text-rose-300')}>
+                  Resultado: {formatCurrency(calculation.result)}
+                </div>
+                {calculation.note && <div className="mt-1 text-xs text-muted-foreground">{calculation.note}</div>}
+                {calculation.components.length > 0 && (
+                  <div className="mt-3 rounded-md border border-border/40 bg-background/40 p-2">
+                    <div className="mb-1 text-[10px] uppercase text-muted-foreground">Componentes</div>
+                    <div className="max-h-32 space-y-1 overflow-auto pr-1 text-xs">
+                      {calculation.components.map((item) => (
+                        <div key={`${item.label}-${item.value}`} className="flex items-center justify-between gap-2">
+                          <span className="truncate text-muted-foreground">{item.label}</span>
+                          <span className={cn('tabular-nums', item.value < 0 && 'text-rose-300')}>
+                            {formatCurrency(item.value)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <table className="w-full text-sm">
               <thead className="text-xs uppercase text-muted-foreground">
                 <tr>
