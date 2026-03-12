@@ -1,6 +1,7 @@
 import { DreResult, DreRow } from '@/services/dre/types';
 
 export type DashboardSeriesPoint = { month: string; value: number };
+export type DashboardPeriodMode = 'monthly' | 'annual';
 
 export type DashboardKpi = {
   key: string;
@@ -34,6 +35,12 @@ export type TreeNode = {
   hasChildren?: boolean;
 };
 
+type DashboardMapOptions = {
+  periodMode?: DashboardPeriodMode;
+  cutoffMonth?: number;
+  selectedMonth?: number;
+};
+
 function normalizeLabel(value: string) {
   return value
     .normalize('NFD')
@@ -41,22 +48,58 @@ function normalizeLabel(value: string) {
     .toUpperCase();
 }
 
-function seriesFromRow(row: DreRow | undefined, months: string[], mode: 'previsto' | 'realizado' | 'projetado') {
+function isCatalogLabel(value: string) {
+  return normalizeLabel(value).includes('CATALOGOS');
+}
+
+function monthNumberFromKey(monthKey: string) {
+  return Number(monthKey.split('-')[1] ?? 0);
+}
+
+function includeByPeriod(
+  monthKey: string,
+  periodMode: DashboardPeriodMode,
+  selectedMonth: number,
+  cutoffMonth: number,
+) {
+  const month = monthNumberFromKey(monthKey);
+  if (!Number.isFinite(month) || month < 1 || month > 12) return false;
+  if (periodMode === 'monthly') return month === selectedMonth;
+  return month <= cutoffMonth;
+}
+
+function monthValueForMode(
+  value: DreRow['valoresPorMes'][string] | undefined,
+  mode: 'previsto' | 'realizado' | 'projetado',
+) {
+  if (!value) return 0;
+  if (mode === 'projetado') return value.projetado ?? value.previsto ?? 0;
+  return value[mode] ?? 0;
+}
+
+function seriesFromRow(
+  row: DreRow | undefined,
+  months: string[],
+  mode: 'previsto' | 'realizado' | 'projetado',
+) {
   if (!row) return months.map((month) => ({ month, value: 0 }));
   return months.map((month) => ({
     month,
-    value:
-      mode === 'projetado'
-        ? row.valoresPorMes[month]?.projetado ?? row.valoresPorMes[month]?.previsto ?? 0
-        : row.valoresPorMes[month]?.[mode] ?? 0,
+    value: monthValueForMode(row.valoresPorMes[month], mode),
   }));
 }
 
-function totalFromRow(row: DreRow | undefined, mode: 'previsto' | 'realizado' | 'projetado') {
+function totalFromRow(
+  row: DreRow | undefined,
+  mode: 'previsto' | 'realizado' | 'projetado',
+  periodMode: DashboardPeriodMode,
+  selectedMonth: number,
+  cutoffMonth: number,
+) {
   if (!row) return 0;
-  return Object.values(row.valoresPorMes).reduce((sum, value) => {
-    const next = mode === 'projetado' ? value.projetado ?? value.previsto : value[mode];
-    return sum + (next ?? 0);
+  return Object.entries(row.valoresPorMes).reduce((sum, [monthKey, value]) => {
+    if (!includeByPeriod(monthKey, periodMode, selectedMonth, cutoffMonth)) return sum;
+    return sum + monthValueForMode(value, mode);
   }, 0);
 }
 
@@ -72,12 +115,18 @@ function findRowByLabel(rows: DreRow[], label: string) {
   return rows.find((row) => normalizeLabel(row.descricao).includes(target));
 }
 
-function buildTree(rows: DreRow[], mode: 'previsto' | 'realizado' | 'projetado') {
+function buildTree(
+  rows: DreRow[],
+  mode: 'previsto' | 'realizado' | 'projetado',
+  periodMode: DashboardPeriodMode,
+  selectedMonth: number,
+  cutoffMonth: number,
+) {
   const nodes = new Map<string, TreeNode>();
   const childrenByParent = new Map<string | null, TreeNode[]>();
 
   rows.forEach((row) => {
-    const value = totalFromRow(row, mode);
+    const value = totalFromRow(row, mode, periodMode, selectedMonth, cutoffMonth);
     const node: TreeNode = { id: row.id, name: row.descricao, value };
     nodes.set(row.id, node);
     const parentId = row.parentId ?? null;
@@ -102,70 +151,91 @@ export function mapDashboardData(
   compare: DreResult | null,
   year: number,
   mode: 'previsto' | 'realizado' | 'projetado' = 'previsto',
+  options?: DashboardMapOptions,
 ): DashboardModel {
   const months = main.months;
   const compareRows = compare?.rows ?? [];
+  const periodMode = options?.periodMode ?? 'annual';
+  const selectedMonth = Math.max(1, Math.min(12, options?.selectedMonth ?? 1));
+  const cutoffMonth = Math.max(1, Math.min(12, options?.cutoffMonth ?? 12));
 
   const receitaBruta = findRowByLabel(main.rows, 'RECEITA BRUTA');
   const receitaLiquida = findRowByLabel(main.rows, 'RECEITA LIQUIDA');
   const lucroLiquido = findRowByLabel(main.rows, 'LUCRO LIQUIDO');
+  const ebitda = findRowByLabel(main.rows, 'EBITDA');
   const custosDespesas = findRowByLabel(main.rows, 'CUSTOS E DESPESAS');
 
   const receitaBrutaCompare = compare ? findRowByLabel(compareRows, 'RECEITA BRUTA') : undefined;
   const receitaLiquidaCompare = compare ? findRowByLabel(compareRows, 'RECEITA LIQUIDA') : undefined;
   const lucroLiquidoCompare = compare ? findRowByLabel(compareRows, 'LUCRO LIQUIDO') : undefined;
+  const ebitdaCompare = compare ? findRowByLabel(compareRows, 'EBITDA') : undefined;
   const custosDespesasCompare = compare ? findRowByLabel(compareRows, 'CUSTOS E DESPESAS') : undefined;
+
+  const resolveTotal = (row: DreRow | undefined) =>
+    totalFromRow(row, mode, periodMode, selectedMonth, cutoffMonth);
 
   const kpis: DashboardKpi[] = [
     {
       key: 'receita-bruta',
-      label: 'Receita bruta',
-      value: totalFromRow(receitaBruta, mode),
+      label: 'Faturamento',
+      value: resolveTotal(receitaBruta),
       ...(() => {
         if (!compare) return { yoyValue: null, yoyPct: null };
-        const delta = calcDelta(totalFromRow(receitaBruta, mode), totalFromRow(receitaBrutaCompare, mode));
+        const delta = calcDelta(resolveTotal(receitaBruta), resolveTotal(receitaBrutaCompare));
         return { yoyValue: delta.abs, yoyPct: delta.pct };
       })(),
       series: seriesFromRow(receitaBruta, months, mode),
     },
     {
-      key: 'receita-liquida',
-      label: 'Receita liquida',
-      value: totalFromRow(receitaLiquida, mode),
+      key: 'ebitda',
+      label: 'EBITDA',
+      value: resolveTotal(ebitda),
       ...(() => {
         if (!compare) return { yoyValue: null, yoyPct: null };
-        const delta = calcDelta(totalFromRow(receitaLiquida, mode), totalFromRow(receitaLiquidaCompare, mode));
+        const delta = calcDelta(resolveTotal(ebitda), resolveTotal(ebitdaCompare));
         return { yoyValue: delta.abs, yoyPct: delta.pct };
       })(),
-      series: seriesFromRow(receitaLiquida, months, mode),
+      series: seriesFromRow(ebitda, months, mode),
     },
     {
       key: 'lucro-liquido',
       label: 'Lucro liquido',
-      value: totalFromRow(lucroLiquido, mode),
+      value: resolveTotal(lucroLiquido),
       ...(() => {
         if (!compare) return { yoyValue: null, yoyPct: null };
-        const delta = calcDelta(totalFromRow(lucroLiquido, mode), totalFromRow(lucroLiquidoCompare, mode));
+        const delta = calcDelta(resolveTotal(lucroLiquido), resolveTotal(lucroLiquidoCompare));
         return { yoyValue: delta.abs, yoyPct: delta.pct };
       })(),
       series: seriesFromRow(lucroLiquido, months, mode),
     },
     {
-      key: 'custos-despesas',
-      label: 'Custos/Despesas operacionais',
-      value: totalFromRow(custosDespesas, mode),
+      key: 'receita-liquida',
+      label: 'Receita liquida',
+      value: resolveTotal(receitaLiquida),
       ...(() => {
         if (!compare) return { yoyValue: null, yoyPct: null };
-        const delta = calcDelta(totalFromRow(custosDespesas, mode), totalFromRow(custosDespesasCompare, mode));
+        const delta = calcDelta(resolveTotal(receitaLiquida), resolveTotal(receitaLiquidaCompare));
+        return { yoyValue: delta.abs, yoyPct: delta.pct };
+      })(),
+      series: seriesFromRow(receitaLiquida, months, mode),
+    },
+    {
+      key: 'custos-despesas',
+      label: 'Custos/Despesas operacionais',
+      value: resolveTotal(custosDespesas),
+      ...(() => {
+        if (!compare) return { yoyValue: null, yoyPct: null };
+        const delta = calcDelta(resolveTotal(custosDespesas), resolveTotal(custosDespesasCompare));
         return { yoyValue: delta.abs, yoyPct: delta.pct };
       })(),
       series: seriesFromRow(custosDespesas, months, mode),
     },
   ];
 
+  const rootRows = main.rows.filter((row) => !row.parentId);
   const volatilitySeries = months.map((month) => ({
     month,
-    value: main.summary.porMes[month]?.total ?? 0,
+    value: rootRows.reduce((sum, row) => sum + monthValueForMode(row.valoresPorMes[month], mode), 0),
   }));
 
   const best = volatilitySeries.length
@@ -175,11 +245,7 @@ export function mapDashboardData(
     ? volatilitySeries.reduce((acc, item) => (item.value < acc.value ? item : acc), volatilitySeries[0])
     : null;
 
-  const rowTotal = (row: DreRow) =>
-    Object.values(row.valoresPorMes).reduce((sum, value) => {
-      const next = mode === 'projetado' ? value.projetado ?? value.previsto : value[mode];
-      return sum + (next ?? 0);
-    }, 0);
+  const rowTotal = (row: DreRow) => resolveTotal(row);
 
   const topGroups = main.rows
     .filter((row) => row.nivel <= 1)
@@ -193,10 +259,22 @@ export function mapDashboardData(
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
 
-  const topGains = main.rows
+  const rowById = new Map(main.rows.map((row) => [row.id, row] as const));
+  const gainsByParent = new Map<string, number>();
+  main.rows
     .filter((row) => row.nivel >= 2)
-    .map((row) => ({ name: row.descricao, value: rowTotal(row) }))
-    .filter((item) => item.value > 0)
+    .forEach((row) => {
+      const value = rowTotal(row);
+      if (value <= 0) return;
+      if (isCatalogLabel(row.descricao)) return;
+      const parent = row.parentId ? rowById.get(row.parentId) : undefined;
+      const parentName = parent?.descricao ?? row.descricao;
+      if (isCatalogLabel(parentName)) return;
+      gainsByParent.set(parentName, (gainsByParent.get(parentName) ?? 0) + value);
+    });
+
+  const topGains = Array.from(gainsByParent.entries())
+    .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
 
@@ -219,6 +297,6 @@ export function mapDashboardData(
     topAccounts,
     topGains,
     topLosses,
-    accountTree: buildTree(main.rows, mode),
+    accountTree: buildTree(main.rows, mode, periodMode, selectedMonth, cutoffMonth),
   };
 }
